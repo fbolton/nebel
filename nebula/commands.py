@@ -15,16 +15,28 @@ class Tasks:
         self.context = context
 
     def create_assembly(self,args):
-        self.context.moduleFactory.create_assembly()
+        self.context.moduleFactory.create(
+            {'Type':'assembly', 'StoryID':'story-for-assembly', 'Category':'test',
+             'UserStory':'As a user, I want to do the thing so that I can do the other thing'}
+        )
 
     def create_procedure(self,args):
-        self.context.moduleFactory.create_procedure()
+        self.context.moduleFactory.create(
+            {'Type': 'procedure', 'StoryID': 'story-for-procedure', 'Category':'test',
+             'UserStory':'As a user, I want to do the thing so that I can do the other thing'}
+        )
 
     def create_concept(self,args):
-        self.context.moduleFactory.create_concept()
+        self.context.moduleFactory.create(
+            {'Type': 'concept', 'StoryID': 'story-for-concept', 'Category':'test',
+             'UserStory':'As a user, I want to do the thing so that I can do the other thing'}
+        )
 
     def create_reference(self,args):
-        self.context.moduleFactory.create_reference()
+        self.context.moduleFactory.create(
+            {'Type': 'reference', 'StoryID': 'story-for-reference', 'Category':'test',
+             'UserStory':'As a user, I want to do the thing so that I can do the other thing'}
+        )
 
 
 # MAIN CODE - PROGRAM STARTS HERE!
@@ -36,6 +48,8 @@ if not os.path.exists('nebula.cfg'):
   sys.exit()
 context = nebula.context.NebulaContext()
 context.initializeFromFile('nebula.cfg')
+this_script_path = os.path.dirname(os.path.abspath(__file__))
+context.templatePath = os.path.abspath(os.path.join(this_script_path, '..', 'template'))
 context.moduleFactory = nebula.factory.ModuleFactory(context)
 tasks = Tasks(context)
 
@@ -52,15 +66,15 @@ assembly_parser = subparsers.add_parser('assembly', help='Generate an assembly')
 assembly_parser.set_defaults(func=tasks.create_assembly)
 
 # Create the sub-parser for the 'procedure' command
-procedure_parser = subparsers.add_parser('procedure', help='Generate a procedure')
+procedure_parser = subparsers.add_parser('procedure', help='Generate a procedure module')
 procedure_parser.set_defaults(func=tasks.create_procedure)
 
 # Create the sub-parser for the 'concept' command
-concept_parser = subparsers.add_parser('concept', help='Generate a concept')
+concept_parser = subparsers.add_parser('concept', help='Generate a concept module')
 concept_parser.set_defaults(func=tasks.create_concept)
 
 # Create the sub-parser for the 'reference' command
-reference_parser = subparsers.add_parser('reference', help='Generate a reference')
+reference_parser = subparsers.add_parser('reference', help='Generate a reference module')
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Now, parse the args and call the relevant sub-command
