@@ -43,6 +43,53 @@ class Tasks:
         metadata = {'Type':'reference'}
         self._create(args, metadata)
 
+    def create_from_csv(self,args):
+        csvfile = args.CSV_FILE
+        if not os.path.exists(csvfile):
+            print 'ERROR: Cannot find file: ' + csvfile
+            sys.exit()
+        if not csvfile.endswith('.csv'):
+            print 'ERROR: Not a CSV file'
+            sys.exit()
+        with open(csvfile, 'r') as filehandle:
+            # First line should be the column headings
+            headings = filehandle.readline().strip().replace(' ','')
+            headinglist = headings.split(',')
+            # Check plausibility of headinglist
+            if ('Category' not in headinglist) or ('ModuleID' not in headinglist):
+                print 'ERROR: CSV file does not have correct format'
+                sys.exit()
+            for line in filehandle:
+                fieldlist = self.smart_split(line.strip())
+                metadata = dict(zip(headinglist, fieldlist))
+                # Weed out irrelevant metadata entries
+                for field,value in metadata.items():
+                    if (value == '') or (field not in self.context.allMetadataFields):
+                        del(metadata[field])
+                self.context.moduleFactory.create(metadata)
+
+
+    def smart_split(self,line):
+        list = []
+        isInQuotes = False
+        currfield = ''
+        for ch in line:
+            if not isInQuotes:
+                if ch == ',':
+                    list.append(currfield)
+                    currfield = ''
+                    continue
+                if ch == '"':
+                    isInQuotes = True
+                    continue
+                currfield += ch
+            else:
+                if ch == '"':
+                    isInQuotes = False
+                    continue
+                currfield += ch
+        return list
+
 
 def add_module_arguments(parser):
     parser.add_argument('CATEGORY', help='Category in which to store this module. Can use / as a separator to define sub-categories')
@@ -90,6 +137,11 @@ concept_parser.set_defaults(func=tasks.create_concept)
 reference_parser = subparsers.add_parser('reference', help='Generate a reference module')
 add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
+
+# Create the sub-parser for the 'create-from' command
+create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file')
+create_parser.add_argument('CSV_FILE', help='Comma-separated values (CSV) file containing data for assemblies and modules. Must end with .csv suffix.')
+create_parser.set_defaults(func=tasks.create_from_csv)
 
 # Now, parse the args and call the relevant sub-command
 args = parser.parse_args()

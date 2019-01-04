@@ -6,6 +6,11 @@ Created on January 2, 2019
 
 class NebulaContext:
     def __init__(self):
+        self.mandatoryMetadataFields = {
+            'Type',
+            'Category',
+            'ModuleID'
+        }
         self.optionalMetadataFields = {
             'ParentAssemblies',
             'UserStory',
@@ -13,6 +18,7 @@ class NebulaContext:
             'QuickstartID',
             'Jira'
         }
+        self.allMetadataFields = self.mandatoryMetadataFields | self.optionalMetadataFields
         self.templatePath = ''
         self.moduleFactory = None
 
