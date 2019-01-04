@@ -13,16 +13,16 @@ class ModuleFactory:
         self.context = context
 
     def name_of_file(self, metadata):
-        storyid = metadata['StoryID']
+        moduleid = metadata['ModuleID']
         type = metadata['Type'].lower()
         if type == 'assembly':
-            return 'as_' + storyid + '.adoc'
+            return 'as_' + moduleid + '.adoc'
         elif type == 'procedure':
-            return 'p_' + storyid + '.adoc'
+            return 'p_' + moduleid + '.adoc'
         elif type == 'concept':
-            return 'c_' + storyid + '.adoc'
+            return 'c_' + moduleid + '.adoc'
         elif type == 'reference':
-            return 'r_' + storyid + '.adoc'
+            return 'r_' + moduleid + '.adoc'
         else:
             print 'ERROR: Unknown module Type: ' + str(type)
             sys.exit()
@@ -55,7 +55,11 @@ class ModuleFactory:
                 if field in metadata:
                     filehandle.write('// ' + field + ': ' + metadata[field] + '\n')
             filehandle.write('\n')
-            filehandle.write("[id='" + metadata['StoryID'] + "']\n")
+            filehandle.write("[id='" + metadata['ModuleID'] + "']\n")
             templatefile = os.path.join(self.context.templatePath, type + '.adoc')
             with open(templatefile, 'r') as templatehandle:
+                if 'Title' in metadata:
+                    # Replace the title from the first line of the template
+                    templatehandle.readline()
+                    filehandle.write('= ' + metadata['Title'] + '\n')
                 filehandle.writelines(templatehandle.readlines())
