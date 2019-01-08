@@ -5,6 +5,7 @@ Created on January 2, 2019
 '''
 
 import os
+import re
 import sys
 import argparse
 import nebula.context
@@ -43,14 +44,59 @@ class Tasks:
         metadata = {'Type':'reference'}
         self._create(args, metadata)
 
-    def create_from_csv(self,args):
-        csvfile = args.CSV_FILE
-        if not os.path.exists(csvfile):
-            print 'ERROR: Cannot find file: ' + csvfile
+    def create_from(self,args):
+        fromfile = args.FROM_FILE
+        if not os.path.exists(fromfile):
+            print 'ERROR: Cannot find file: ' + fromfile
             sys.exit()
-        if not csvfile.endswith('.csv'):
-            print 'ERROR: Not a CSV file'
+        if fromfile.endswith('.csv'):
+            self._create_from_csv(args)
+            return
+        elif fromfile.endswith('.adoc') and os.path.basename(fromfile).startswith('as'):
+            self._create_from_assembly(args)
+            return
+        else:
+            print 'ERROR: Unknown file type [' + fromfile + ']: must end either in .csv or .adoc'
             sys.exit()
+
+    def type_of_file(self, basename):
+        if basename.startswith('as_'):
+            return 'assembly'
+        elif basename.startswith('p_'):
+            return 'procedure'
+        elif basename.startswith('c_'):
+            return 'concept'
+        elif basename.startswith('r_'):
+            return 'reference'
+        else:
+            return None
+
+    def moduleid_of_file(self, basename):
+        base, ext = os.path.splitext(basename)
+        return base.split('_', 1)[1]
+
+    def _create_from_assembly(self,args):
+        asfile = args.FROM_FILE
+        regexp = re.compile(r'^\s*include::[\./]*modules/([^\[]+)\[[^\]]*\]')
+        with open(asfile, 'r') as f:
+            for line in f:
+                result = regexp.search(line)
+                if result is not None:
+                    modulefile = result.group(1)
+                    category, basename = os.path.split(modulefile)
+                    type = self.type_of_file(basename)
+                    if type is not None and basename.endswith('.adoc'):
+                        print modulefile
+                        metadata = {}
+                        metadata['Type'] = type
+                        metadata['Category'] = category
+                        metadata['ModuleID'] = self.moduleid_of_file(basename)
+                        metadata['ParentAssemblies'] = asfile
+                        self.context.moduleFactory.create(metadata)
+
+
+    def _create_from_csv(self,args):
+        csvfile = args.FROM_FILE
         with open(csvfile, 'r') as filehandle:
             # First line should be the column headings
             headings = filehandle.readline().strip().replace(' ','')
@@ -139,9 +185,9 @@ add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
-create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file')
-create_parser.add_argument('CSV_FILE', help='Comma-separated values (CSV) file containing data for assemblies and modules. Must end with .csv suffix.')
-create_parser.set_defaults(func=tasks.create_from_csv)
+create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file or from an assembly file')
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv) or an assembly file (ending with .adoc)')
+create_parser.set_defaults(func=tasks.create_from)
 
 # Now, parse the args and call the relevant sub-command
 args = parser.parse_args()
