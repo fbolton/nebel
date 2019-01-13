@@ -1,0 +1,87 @@
+= Nebula Utility for Modular Documentation
+
+`nebula` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebula` to create a new instance of an assembly, procedure, concept, or reference.
+
+== Installing nebula
+
+The `nebula` utility is easy to install, as it does not require any special or non-standard Python libraries.
+
+Prerequisites:
+
+* Python 2.7 -- installed by default on Fedora Linux.
+
+How to install:
+
+. Clone this repository, as follows:
++
+----
+git clone git@github.com:fbolton/nebula.git
+----
+
+. Add the `bin/nebula` executable to your `PATH`. For example, in the Bash shell:
++
+----
+export PATH=/path/to/your/nebula/bin:$PATH
+----
++
+Ideally, you should add this export command to your `~/.bashrc` file, to make `nebula` permanently available.
+
+== Setting up a content repository to use nebula
+
+`nebula` is designed to manage modular content in a documentation repository (presumed to be a Git repository, although that is not a requirement). `nebula` imposes certain requirements on the directory structure of the content repository, as follows:
+
+. There must be a `nebula.cfg` file in the top level of working directory tree.
+This file is required by `nebula` and `nebula` commands _must_ be issued in the same directory as `nebula.cfg`, otherwise `nebula` returns an error.
+
+. Modules (such as procedures, concepts, and references) must be stored under a `modules` directory.
+Create a `modules` directory to store the module files:
++
+----
+mkdir modules
+----
+
+. Assemblies must be stored under an `assemblies` directory.
+Create an `assemblies` directory to store the assembly files:
++
+----
+mkdir assemblies
+----
+
+== Naming conventions for files and directories
+
+=== Naming convention for modules
+
+Files under the `modules` directory have the following general form:
+
+----
+modules/<CATEGORY>/<TYPE>_<MODULE_ID>.adoc
+----
+
+Where `<CATEGORY>` provides a general way of grouping related modules in the context of modular documentation (replacing the concept of a book or guide).
+It is also possible to use compound categories -- such as `camel/enterprise-integration-patterns`, for example -- which implicitly introduces more subdirectories for the sub-categories.
+The `<TYPE>` prefix indicates what kind of module is represented by the file and can have one of the following values:
+
+* `p` -- procedure module
+
+* `c` -- concept module
+
+* `r` -- reference module
+
+The `<MODULE_ID>` is a unique ID for the module (with the format of words separated by hyphens) and it should be identical to the anchor ID that is attached to the module's title.
+That is, the module is assumed to have a title that is defined something like:
+
+----
+[id='<MODULE_ID>']
+= This is a sample title
+----
+
+=== Naming convention for assemblies
+
+Files under the `assemblies` directory have the following general form:
+
+----
+assemblies/<CATEGORY>/as_<MODULE_ID>.adoc
+----
+
+Where `<CATEGORY>` is used in the same way as the categories for modules.
+In particular, closely related assemblies and modules should share the same category.
