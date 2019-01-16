@@ -85,3 +85,53 @@ assemblies/<CATEGORY>/as_<MODULE_ID>.adoc
 
 Where `<CATEGORY>` is used in the same way as the categories for modules.
 In particular, closely related assemblies and modules should share the same category.
+
+== Creating content with Nebula
+
+=== Creating modules and assemblies from a CSV file
+
+Nebula enables you to create multiple assemblies and modules quickly from a comma-separated values (CSV) file (which can be obtained by exporting content from a spreadsheet).
+This capability is designed to support a workflow where you design the high-level structure of a guide in a spreadsheet (for example, in Google sheets) and then generate the corresponding assemblies and modules from the spreadsheet data.
+
+A typical CSV file might have a structure like the following:
+
+----
+Category,UserStory,Type,ModuleID,Title,VerifiedInVersion,QuickstartID,Comments,Jira
+installing-on-apache-karaf,"As an Evaluator, I want to install Fuse on Karaf, so that I can try it out quickly and discover whether it meets my needs.",assembly,install-karaf-for-evaluator,,,,Evaluator only has access to the kits published on the developer site. Evaluators like to use an IDE and probably have a Windows machine.,
+installing-on-apache-karaf,"As a Developer, I want to install Fuse on Karaf, so that I can develop Karaf applications on my local machine.",assembly,install-karaf-for-developer,,,,Developer is probably not that worried about which patch they install. Probably wants to configure Maven properly.,
+----
+
+Note that only the `Category`, `Type`, and `ModuleID` columns are required.
+However, if you are using the spreadsheet to define the high-level structure of a guide, you will almost certainly want to include the `UserStory` column as well.
+Some of the additional columns are preserved as metadata (written into comments in the generated module and assembly files), whilst other additional columns are ignored.
+
+Given a CSV file, `sample.csv`, you can generate the corresponding modules and assemblies by entering the following command in your content repository:
+
+----
+nebula create-from sample.csv
+----
+
+=== Creating modules from an assembly file
+
+Nebula can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with boilerplate content).
+
+To create new modules from an assembly file, proceed as follows:
+
+. Edit an existing assembly file to add some `include::` directives for _some modules that do not exist yet_.
+For example, say you have an assembly file, `assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc`, you could add the following include directives:
++
+----
+\include::../../modules/installing-on-apache-karaf/p_download-latest-karaf-patch.adoc[leveloffset=+1]
+
+\include::../../modules/installing-on-apache-karaf/p_unzip-karaf-package.adoc[leveloffset=+1]
+
+\include::../../modules/installing-on-apache-karaf/p_karaf-create-new-user.adoc[leveloffset=+1]
+----
+
+. From the command line, enter the following `nebula` command (from the same directory where `nebula.cfg` is stored):
++
+----
+nebula create-from assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc
+----
++
+After running this command, you should find three new procedure modules under the `modules/installing-on-apache-karaf/` directory.
