@@ -108,6 +108,10 @@ class Tasks:
             for line in filehandle:
                 fieldlist = self.smart_split(line.strip())
                 metadata = dict(zip(headinglist, fieldlist))
+                # Skip rows with Implement field set to 'no'
+                if ('Implement' in metadata) and (metadata['Implement'].lower() == 'no'):
+                    print 'INFO: Skipping unimplemented module/assembly: ' + metadata['ModuleID']
+                    continue
                 # Weed out irrelevant metadata entries
                 for field,value in metadata.items():
                     if (value == '') or (field not in self.context.allMetadataFields):
