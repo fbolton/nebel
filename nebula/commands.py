@@ -7,6 +7,7 @@ Created on January 2, 2019
 import os
 import re
 import sys
+import shutil
 import argparse
 import nebula.context
 import nebula.factory
@@ -141,6 +142,69 @@ class Tasks:
         return list
 
 
+    def book(self,args):
+        if args.create:
+            # Create book and (optionally) add categories
+            self._book_create(args)
+        elif args.category_list:
+            # Add categories
+            self._book_categories(args)
+        else:
+            print 'ERROR: No options specified'
+
+
+    def _book_create(self,args):
+        bookdir = args.BOOK_DIR
+        if os.path.exists(bookdir):
+            print 'ERROR: Book directory already exists: ' + bookdir
+            sys.exit()
+        os.mkdir(bookdir)
+        os.mkdir(os.path.join(bookdir, 'assemblies'))
+        os.mkdir(os.path.join(bookdir, 'modules'))
+        os.mkdir(os.path.join(bookdir, 'images'))
+        os.symlink(os.path.join('..', 'shared', 'attributes.adoc'), os.path.join(bookdir, 'attributes.adoc'))
+        os.symlink(
+            os.path.join('..', 'shared', 'attributes-links.adoc'),
+            os.path.join(bookdir, 'attributes-links.adoc')
+        )
+        templatefile = os.path.join(self.context.templatePath, 'master.adoc')
+        shutil.copyfile(templatefile, os.path.join(bookdir, 'master.adoc'))
+        templatefile = os.path.join(self.context.templatePath, 'master-docinfo.xml')
+        shutil.copyfile(templatefile, os.path.join(bookdir, 'master-docinfo.xml'))
+        # Add categories (if specified)
+        if args.category_list:
+            self._book_categories(args)
+
+
+    def _book_categories(self, args):
+        bookdir = args.BOOK_DIR
+        if not os.path.exists(bookdir):
+            print 'ERROR: Book directory does not exist: ' + bookdir
+            sys.exit()
+        imagesdir = os.path.join(bookdir, 'images')
+        modulesdir = os.path.join(bookdir, 'modules')
+        assembliesdir = os.path.join(bookdir, 'assemblies')
+        if (not os.path.exists(imagesdir)) or (not os.path.exists(modulesdir)) or (not os.path.exists(assembliesdir)):
+            print 'ERROR: Book directory must have the subdirectories images, modules, and assemblies'
+            sys.exit()
+        categorylist = args.category_list.split(',')
+        map(str.strip, categorylist)
+        for category in categorylist:
+            os.symlink(
+                os.path.join('..', '..', 'images', category),
+                os.path.join(imagesdir, category)
+            )
+            os.symlink(
+                os.path.join('..', '..', 'modules', category),
+                os.path.join(modulesdir, category)
+            )
+            os.symlink(
+                os.path.join('..', '..', 'assemblies', category),
+                os.path.join(assembliesdir, category)
+            )
+
+
+
 def add_module_arguments(parser):
     parser.add_argument('CATEGORY', help='Category in which to store this module. Can use / as a separator to define sub-categories')
     parser.add_argument('MODULE_ID', help='Unique ID to identify this module')
@@ -192,6 +256,14 @@ reference_parser.set_defaults(func=tasks.create_reference)
 create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file or from an assembly file')
 create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv) or an assembly file (ending with .adoc)')
 create_parser.set_defaults(func=tasks.create_from)
+
+# Create the sub-parser for the 'book' command
+book_parser = subparsers.add_parser('book', help='Create and manage book directories')
+book_parser.add_argument('BOOK_DIR', help='The book directory')
+book_parser.add_argument('--create', help='Create a new book directory', action='store_true')
+book_parser.add_argument('-c', '--category-list', help='Comma-separated list of categories to add to book (enclose in quotes)')
+book_parser.set_defaults(func=tasks.book)
+
 
 # Now, parse the args and call the relevant sub-command
 args = parser.parse_args()
