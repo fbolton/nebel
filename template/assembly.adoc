@@ -11,10 +11,10 @@ This paragraph is the assembly introduction. It explains what the user will acco
 
 // The following include statements pull in the module files that comprise the assembly. Include any combination of concept, procedure, or reference modules required to cover the user story. You can also include other assemblies.
 
-include::modules/TEMPLATE_CONCEPT_explaining_a_concept.adoc[leveloffset=+1]
+\include::modules/TEMPLATE_CONCEPT_explaining_a_concept.adoc[leveloffset=+1]
 // [leveloffset=+1] ensures that when a module starts with a level-1 heading (= Heading), the heading will be interpreted as a level-2 heading (== Heading) in the assembly.
 
-include::modules/TEMPLATE_PROCEDURE_doing_one_procedure.adoc[leveloffset=+1]
+\include::modules/TEMPLATE_PROCEDURE_doing_one_procedure.adoc[leveloffset=+1]
 
 == Additional resources (or Next steps)
 
