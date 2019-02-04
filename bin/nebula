@@ -1,6 +1,0 @@
-#!/bin/bash
-SCRIPTDIR=$(dirname $0)
-export PYTHONPATH=$SCRIPTDIR/..
-
-#python -m cProfile -s ncalls $PYTHONPATH/nebula/commands.py "$@"
-python $PYTHONPATH/nebula/commands.py "$@"

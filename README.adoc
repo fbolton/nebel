@@ -1,10 +1,10 @@
-= Nebula Utility for Modular Documentation
+= Nebel Utility for Modular Documentation
 
-`nebula` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebula` to create a new instance of an assembly, procedure, concept, or reference.
+`nebel` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebel` to create a new instance of an assembly, procedure, concept, or reference.
 
-== Installing nebula
+== Installing nebel
 
-The `nebula` utility is easy to install, as it does not require any special or non-standard Python libraries.
+The `nebel` utility is easy to install, as it does not require any special or non-standard Python libraries.
 
 Prerequisites:
 
@@ -15,23 +15,23 @@ How to install:
 . Clone this repository, as follows:
 +
 ----
-git clone git@github.com:fbolton/nebula.git
+git clone git@github.com:fbolton/nebel.git
 ----
 
-. Add the `bin/nebula` executable to your `PATH`. For example, in the Bash shell:
+. Add the `bin/nebel` executable to your `PATH`. For example, in the Bash shell:
 +
 ----
-export PATH=/path/to/your/nebula/bin:$PATH
+export PATH=/path/to/your/nebel/bin:$PATH
 ----
 +
-Ideally, you should add this export command to your `~/.bashrc` file, to make `nebula` permanently available.
+Ideally, you should add this export command to your `~/.bashrc` file, to make `nebel` permanently available.
 
-== Setting up a content repository to use nebula
+== Setting up a content repository to use nebel
 
-`nebula` is designed to manage modular content in a documentation repository (presumed to be a Git repository, although that is not a requirement). `nebula` imposes certain requirements on the directory structure of the content repository, as follows:
+`nebel` is designed to manage modular content in a documentation repository (presumed to be a Git repository, although that is not a requirement). `nebel` imposes certain requirements on the directory structure of the content repository, as follows:
 
-. There must be a `nebula.cfg` file in the top level of working directory tree.
-This file is required by `nebula` and `nebula` commands _must_ be issued in the same directory as `nebula.cfg`, otherwise `nebula` returns an error.
+. There must be a `nebel.cfg` file in the top level of working directory tree.
+This file is required by `nebel` and `nebel` commands _must_ be issued in the same directory as `nebel.cfg`, otherwise `nebel` returns an error.
 
 . Modules (such as procedures, concepts, and references) must be stored under a `modules` directory.
 Create a `modules` directory to store the module files:
@@ -86,11 +86,11 @@ assemblies/<CATEGORY>/as_<MODULE_ID>.adoc
 Where `<CATEGORY>` is used in the same way as the categories for modules.
 In particular, closely related assemblies and modules should share the same category.
 
-== Creating content with Nebula
+== Creating content with Nebel
 
 === Creating modules and assemblies from a CSV file
 
-Nebula enables you to create multiple assemblies and modules quickly from a comma-separated values (CSV) file (which can be obtained by exporting content from a spreadsheet).
+Nebel enables you to create multiple assemblies and modules quickly from a comma-separated values (CSV) file (which can be obtained by exporting content from a spreadsheet).
 This capability is designed to support a workflow where you design the high-level structure of a guide in a spreadsheet (for example, in Google sheets) and then generate the corresponding assemblies and modules from the spreadsheet data.
 
 A typical CSV file might have a structure like the following:
@@ -108,12 +108,12 @@ Some of the additional columns are preserved as metadata (written into comments 
 Given a CSV file, `sample.csv`, you can generate the corresponding modules and assemblies by entering the following command in your content repository:
 
 ----
-nebula create-from sample.csv
+nebel create-from sample.csv
 ----
 
 === Creating modules from an assembly file
 
-Nebula can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with boilerplate content).
+Nebel can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with boilerplate content).
 
 To create new modules from an assembly file, proceed as follows:
 
@@ -128,10 +128,10 @@ For example, say you have an assembly file, `assemblies/installing-on-apache-kar
 \include::../../modules/installing-on-apache-karaf/p_karaf-create-new-user.adoc[leveloffset=+1]
 ----
 
-. From the command line, enter the following `nebula` command (from the same directory where `nebula.cfg` is stored):
+. From the command line, enter the following `nebel` command (from the same directory where `nebel.cfg` is stored):
 +
 ----
-nebula create-from assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc
+nebel create-from assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc
 ----
 +
 After running this command, you should find three new procedure modules under the `modules/installing-on-apache-karaf/` directory.

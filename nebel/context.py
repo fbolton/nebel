@@ -4,7 +4,7 @@ Created on January 2, 2019
 @author fbolton
 '''
 
-class NebulaContext:
+class NebelContext:
     def __init__(self):
         self.mandatoryMetadataFields = {
             'Type',

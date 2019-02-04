@@ -9,8 +9,8 @@ import re
 import sys
 import shutil
 import argparse
-import nebula.context
-import nebula.factory
+import nebel.context
+import nebel.factory
 
 class Tasks:
     def __init__(self, context):
@@ -218,18 +218,18 @@ def add_module_arguments(parser):
 # --------------------------------
 
 # Basic initialization
-if not os.path.exists('nebula.cfg'):
-  print 'WARN: No nebula.cfg file found in this directory.'
+if not os.path.exists('nebel.cfg'):
+  print 'WARN: No nebel.cfg file found in this directory.'
   sys.exit()
-context = nebula.context.NebulaContext()
-context.initializeFromFile('nebula.cfg')
+context = nebel.context.NebelContext()
+context.initializeFromFile('nebel.cfg')
 this_script_path = os.path.dirname(os.path.abspath(__file__))
 context.templatePath = os.path.abspath(os.path.join(this_script_path, '..', 'template'))
-context.moduleFactory = nebula.factory.ModuleFactory(context)
+context.moduleFactory = nebel.factory.ModuleFactory(context)
 tasks = Tasks(context)
 
 # Create the top-level parser
-parser = argparse.ArgumentParser(prog='nebula')
+parser = argparse.ArgumentParser(prog='nebel')
 subparsers = parser.add_subparsers()
 
 # Create the sub-parser for the 'assembly' command

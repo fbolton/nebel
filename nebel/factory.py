@@ -6,7 +6,7 @@ Created on January 2, 2019
 
 import os
 import sys
-import nebula.context
+import nebel.context
 
 class ModuleFactory:
     def __init__(self, context):
@@ -49,7 +49,7 @@ class ModuleFactory:
             print 'INFO: File already exists, skipping: ' + filename
             return
         with open(filepath, 'w') as filehandle:
-            filehandle.write('// Metadata created by nebula\n')
+            filehandle.write('// Metadata created by nebel\n')
             filehandle.write('//\n')
             for field in self.context.optionalMetadataFields:
                 if field in metadata:
