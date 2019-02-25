@@ -7,6 +7,7 @@ Created on January 2, 2019
 import os
 import re
 import sys
+import tempfile
 import shutil
 import argparse
 import nebel.context
@@ -94,6 +95,21 @@ class Tasks:
                         metadata['ModuleID'] = self.moduleid_of_file(basename)
                         metadata['ParentAssemblies'] = asfile
                         self.context.moduleFactory.create(metadata)
+
+
+    def _scan_assembly_for_includes(self,asfile):
+        modulelist = []
+        regexp = re.compile(r'^\s*include::[\./]*modules/([^\[]+)\[[^\]]*\]')
+        with open(asfile, 'r') as f:
+            for line in f:
+                result = regexp.search(line)
+                if result is not None:
+                    modulefile = result.group(1)
+                    category, basename = os.path.split(modulefile)
+                    type = self.type_of_file(basename)
+                    if type is not None and basename.endswith('.adoc'):
+                        modulelist.append(os.path.join('modules', modulefile))
+        return modulelist
 
 
     def _create_from_csv(self,args):
@@ -204,6 +220,106 @@ class Tasks:
             )
 
 
+    def update(self,args):
+        if args.parent_assemblies:
+            self._update_parent_assemblies(args)
+        else:
+            print 'ERROR: Missing required option(s)'
+
+
+    def _update_parent_assemblies(self,args):
+        # Get the list of assemblies to scan
+        assemblylist = []
+        categoryset = set()
+        if args.category_list:
+            categoryset = set(args.category_list.split(','))
+            map(str.strip, categoryset)
+        else:
+            cwd = os.getcwd()
+            os.chdir('assemblies')
+            for root, dirs, files in os.walk(os.curdir):
+                for dir in dirs:
+                    categoryset.add(os.path.normpath(os.path.join(root, dir)))
+            os.chdir(cwd)
+        for category in categoryset:
+            assemblycategorydir = os.path.join('assemblies', category)
+            if os.path.exists(assemblycategorydir):
+                for entry in os.listdir(assemblycategorydir):
+                    pathname = os.path.join('assemblies', category, entry)
+                    if os.path.isfile(pathname):
+                        assemblylist.append(pathname)
+        # Create dictionary of modules included by assemblies
+        assemblyincludes = {}
+        for assemblyfile in assemblylist:
+            assemblyincludes[assemblyfile] = self._scan_assembly_for_includes(assemblyfile)
+        # print assemblyincludes
+        # Invert dictionary
+        parentassemblies = {}
+        for assemblyfile in assemblyincludes:
+            for modulefile in assemblyincludes[assemblyfile]:
+                if modulefile not in parentassemblies:
+                    parentassemblies[modulefile] = [assemblyfile]
+                else:
+                    parentassemblies[modulefile].append(assemblyfile)
+        # print parentassemblies
+        # Update the ParentAssemblies metadata in each of the module files
+        metadata = {}
+        for modulefile in parentassemblies:
+            metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
+            self.update_metadata(modulefile, metadata)
+
+
+    def update_metadata(self, file, metadata):
+        print 'Updating metadata for file: ' + file
+        print 'Metadata: ' + str(metadata)
+        regexp = re.compile(r'^\s*//\s*(\w+)\s*:.*')
+        # Scan file for pre-existing metadata settings
+        preexisting = set()
+        with open(file) as scan_file:
+            for line in scan_file:
+                # Detect end of metadata section
+                if line.startswith('='):
+                    break
+                result = regexp.search(line)
+                if result is not None:
+                    metaname = result.group(1)
+                    if metaname in self.context.optionalMetadataFields:
+                        preexisting.add(metaname)
+        properties2add = (set(metadata.keys()) & self.context.optionalMetadataFields) - preexisting
+        properties2update = set(metadata.keys()) & self.context.optionalMetadataFields & preexisting
+        # Create temp file
+        fh, abs_path = tempfile.mkstemp()
+        with os.fdopen(fh, 'w') as new_file:
+            with open(file) as old_file:
+                START_OF_METADATA = False
+                END_OF_METADATA = False
+                NEW_PROPERTIES_ADDED = False
+                for line in old_file:
+                    # Detect start of metadata section
+                    if line.startswith('// Metadata'):
+                        new_file.write(line)
+                        START_OF_METADATA = True
+                        continue
+                    # Detect end of metadata section
+                    if line.startswith('='):
+                        END_OF_METADATA = True
+                    if START_OF_METADATA and not END_OF_METADATA:
+                        if not NEW_PROPERTIES_ADDED:
+                            for metaname in properties2add:
+                                new_file.write('// ' + metaname + ': ' + metadata[metaname] + '\n')
+                            NEW_PROPERTIES_ADDED = True
+                        result = regexp.search(line)
+                        if result is not None:
+                            metaname = result.group(1)
+                            if metaname in properties2update:
+                                new_file.write('// ' + metaname + ': ' + metadata[metaname] + '\n')
+                                continue
+                    new_file.write(line)
+        # Remove original file
+        os.remove(file)
+        # Move new file
+        shutil.move(abs_path, file)
+
 
 def add_module_arguments(parser):
     parser.add_argument('CATEGORY', help='Category in which to store this module. Can use / as a separator to define sub-categories')
@@ -263,6 +379,12 @@ book_parser.add_argument('BOOK_DIR', help='The book directory')
 book_parser.add_argument('--create', help='Create a new book directory', action='store_true')
 book_parser.add_argument('-c', '--category-list', help='Comma-separated list of categories to add to book (enclose in quotes)')
 book_parser.set_defaults(func=tasks.book)
+
+# Create the sub-parser for the 'update' command
+update_parser = subparsers.add_parser('update', help='Update metadata in modules and assemblies')
+update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
+update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
+update_parser.set_defaults(func=tasks.update)
 
 
 # Now, parse the args and call the relevant sub-command
