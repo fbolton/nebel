@@ -122,7 +122,9 @@ class Tasks:
             if ('Category' not in headinglist) or ('ModuleID' not in headinglist):
                 print 'ERROR: CSV file does not have correct format'
                 sys.exit()
-            for line in filehandle:
+            completefile = filehandle.read()
+            lines = self.smart_split(completefile, '\n', preserveQuotes=True)
+            for line in lines:
                 fieldlist = self.smart_split(line.strip())
                 metadata = dict(zip(headinglist, fieldlist))
                 # Skip rows with Implement field set to 'no'
@@ -136,24 +138,29 @@ class Tasks:
                 self.context.moduleFactory.create(metadata)
 
 
-    def smart_split(self,line):
+    def smart_split(self, line, splitchar=',', preserveQuotes=False):
         list = []
         isInQuotes = False
         currfield = ''
         for ch in line:
             if not isInQuotes:
-                if ch == ',':
+                if ch == splitchar:
                     list.append(currfield)
                     currfield = ''
                     continue
                 if ch == '"':
                     isInQuotes = True
-                    continue
+                    if not preserveQuotes:
+                        continue
                 currfield += ch
             else:
+                if ch == '\r' or ch == '\n':
+                    # Eliminate newlines from quoted fields
+                    continue
                 if ch == '"':
                     isInQuotes = False
-                    continue
+                    if not preserveQuotes:
+                        continue
                 currfield += ch
         return list
 
@@ -271,7 +278,6 @@ class Tasks:
 
     def update_metadata(self, file, metadata):
         print 'Updating metadata for file: ' + file
-        print 'Metadata: ' + str(metadata)
         regexp = re.compile(r'^\s*//\s*(\w+)\s*:.*')
         # Scan file for pre-existing metadata settings
         preexisting = set()
