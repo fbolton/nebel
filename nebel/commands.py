@@ -162,8 +162,9 @@ class Tasks:
                     if not preserveQuotes:
                         continue
                 currfield += ch
-        # Don't forget to append the last field!
-        list.append(currfield)
+        # Don't forget to append the last field (if any)!
+        if currfield:
+            list.append(currfield)
         return list
 
 
