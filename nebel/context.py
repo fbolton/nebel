@@ -16,7 +16,8 @@ class NebelContext:
             'UserStory',
             'VerifiedInVersion',
             'QuickstartID',
-            'Jira'
+            'Jira',
+            'Title'
         }
         self.allMetadataFields = self.mandatoryMetadataFields | self.optionalMetadataFields
         self.templatePath = ''

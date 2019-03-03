@@ -52,7 +52,7 @@ class ModuleFactory:
             filehandle.write('// Metadata created by nebel\n')
             filehandle.write('//\n')
             for field in self.context.optionalMetadataFields:
-                if field in metadata:
+                if (field in metadata) and (field.lower() != 'title'):
                     filehandle.write('// ' + field + ': ' + metadata[field] + '\n')
             filehandle.write('\n')
             filehandle.write("[id='" + metadata['ModuleID'] + "']\n")
