@@ -125,17 +125,18 @@ class Tasks:
             completefile = filehandle.read()
             lines = self.smart_split(completefile, '\n', preserveQuotes=True)
             for line in lines:
-                fieldlist = self.smart_split(line.strip())
-                metadata = dict(zip(headinglist, fieldlist))
-                # Skip rows with Implement field set to 'no'
-                if ('Implement' in metadata) and (metadata['Implement'].lower() == 'no'):
-                    print 'INFO: Skipping unimplemented module/assembly: ' + metadata['ModuleID']
-                    continue
-                # Weed out irrelevant metadata entries
-                for field,value in metadata.items():
-                    if (value == '') or (field not in self.context.allMetadataFields):
-                        del(metadata[field])
-                self.context.moduleFactory.create(metadata)
+                if line.strip() != '':
+                    fieldlist = self.smart_split(line.strip())
+                    metadata = dict(zip(headinglist, fieldlist))
+                    # Skip rows with Implement field set to 'no'
+                    if ('Implement' in metadata) and (metadata['Implement'].lower() == 'no'):
+                        print 'INFO: Skipping unimplemented module/assembly: ' + metadata['ModuleID']
+                        continue
+                    # Weed out irrelevant metadata entries
+                    for field,value in metadata.items():
+                        if (value == '') or (field not in self.context.allMetadataFields):
+                            del(metadata[field])
+                    self.context.moduleFactory.create(metadata)
 
 
     def smart_split(self, line, splitchar=',', preserveQuotes=False):
