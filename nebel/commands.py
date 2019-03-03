@@ -162,6 +162,8 @@ class Tasks:
                     if not preserveQuotes:
                         continue
                 currfield += ch
+        # Don't forget to append the last field!
+        list.append(currfield)
         return list
 
 
