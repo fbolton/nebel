@@ -38,6 +38,9 @@ class ModuleFactory:
             print 'ERROR: Unknown module Type: ' + str(type)
             sys.exit()
 
+    def module_or_assembly_path(self, metadata):
+        return os.path.join(self.module_dirpath(metadata), self.name_of_file(metadata))
+
     def create(self, metadata):
         type = metadata['Type'].lower()
         filename = self.name_of_file(metadata)
@@ -52,7 +55,7 @@ class ModuleFactory:
             filehandle.write('// Metadata created by nebel\n')
             filehandle.write('//\n')
             for field in self.context.optionalMetadataFields:
-                if (field in metadata) and (field.lower() != 'title'):
+                if (field in metadata) and (field.lower() != 'title') and (field.lower() != 'includefiles'):
                     filehandle.write('// ' + field + ': ' + metadata[field] + '\n')
             filehandle.write('\n')
             filehandle.write("[id='" + metadata['ModuleID'] + "']\n")
@@ -62,4 +65,10 @@ class ModuleFactory:
                     # Replace the title from the first line of the template
                     templatehandle.readline()
                     filehandle.write('= ' + metadata['Title'] + '\n')
-                filehandle.writelines(templatehandle.readlines())
+                # Process the rest of the file
+                for line in templatehandle:
+                    if line.startswith('//INCLUDE') and ('IncludeFiles' in metadata):
+                        for filepath in metadata['IncludeFiles'].split(','):
+                            filehandle.write('include::../../' + filepath + '[leveloffset=+1]\n\n')
+                    else:
+                        filehandle.write(line)

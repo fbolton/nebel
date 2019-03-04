@@ -124,6 +124,9 @@ class Tasks:
                 sys.exit()
             completefile = filehandle.read()
             lines = self.smart_split(completefile, '\n', preserveQuotes=True)
+            currassemblymetadata = {}
+            currassemblyincludes = []
+            currassemblypath = ''
             for line in lines:
                 if line.strip() != '':
                     fieldlist = self.smart_split(line.strip())
@@ -136,7 +139,26 @@ class Tasks:
                     for field,value in metadata.items():
                         if (value == '') or (field not in self.context.allMetadataFields):
                             del(metadata[field])
-                    self.context.moduleFactory.create(metadata)
+                    if (metadata['Type'] == 'assembly') and args.generate_includes:
+                        if currassemblymetadata:
+                            # Finish up current (pending) assembly, if any
+                            if currassemblyincludes:
+                                currassemblymetadata['IncludeFiles'] = ','.join(currassemblyincludes)
+                            self.context.moduleFactory.create(currassemblymetadata)
+                        # Reset the current assembly
+                        currassemblymetadata = metadata
+                        currassemblyincludes = []
+                        currassemblypath = self.context.moduleFactory.module_or_assembly_path(metadata)
+                    else:
+                        if currassemblypath:
+                            metadata['ParentAssemblies'] = currassemblypath
+                            currassemblyincludes.append(self.context.moduleFactory.module_or_assembly_path(metadata))
+                        self.context.moduleFactory.create(metadata)
+            if currassemblymetadata:
+                # Finish up current (pending) assembly, if any
+                if currassemblyincludes:
+                    currassemblymetadata['IncludeFiles'] = ','.join(currassemblyincludes)
+                self.context.moduleFactory.create(currassemblymetadata)
 
 
     def smart_split(self, line, splitchar=',', preserveQuotes=False):
@@ -381,6 +403,7 @@ reference_parser.set_defaults(func=tasks.create_reference)
 # Create the sub-parser for the 'create-from' command
 create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file or from an assembly file')
 create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv) or an assembly file (ending with .adoc)')
+create_parser.add_argument('--generate-includes', help='Generate include directives in assemblies, working on the assumption that the modules listed after an assembly are meant to be included in that assembly', action='store_true')
 create_parser.set_defaults(func=tasks.create_from)
 
 # Create the sub-parser for the 'book' command
