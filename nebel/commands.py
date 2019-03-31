@@ -254,33 +254,146 @@ class Tasks:
 
 
     def update(self,args):
-        if args.parent_assemblies:
-            self._update_parent_assemblies(args)
-        else:
-            print 'ERROR: Missing required option(s)'
-
-
-    def _update_parent_assemblies(self,args):
-        # Get the list of assemblies to scan
-        assemblylist = []
+        # Determine the set of categories to update
         categoryset = set()
         if args.category_list:
             categoryset = set(args.category_list.split(','))
             map(str.strip, categoryset)
+        elif args.book:
+            if not os.path.exists(args.book):
+                print 'ERROR: ' + args.book + ' directory does not exist.'
+                sys.exit()
+            categoryset = self.scan_for_categories(os.path.join(args.book, 'modules'))\
+                          | self.scan_for_categories(os.path.join(args.book, 'assemblies'))
         else:
-            cwd = os.getcwd()
-            os.chdir('assemblies')
-            for root, dirs, files in os.walk(os.curdir):
-                for dir in dirs:
-                    categoryset.add(os.path.normpath(os.path.join(root, dir)))
-            os.chdir(cwd)
+            categoryset = self.scan_for_categories('modules') | self.scan_for_categories('assemblies')
+        # Select the kind of update to implement
+        if args.fix_includes:
+            self._update_fix_includes(categoryset)
+        if args.parent_assemblies:
+            assemblylist = self.scan_for_categorised_files('assemblies', categoryset)
+            self._update_parent_assemblies(assemblylist)
+        if (not args.fix_includes) and (not args.parent_assemblies):
+            print 'ERROR: Missing required option(s)'
+
+
+    def scan_for_categories(self, rootdir):
+        categoryset = set()
+        cwd = os.getcwd()
+        os.chdir(rootdir)
+        for root, dirs, files in os.walk(os.curdir, followlinks=True):
+            for dir in dirs:
+                categoryset.add(os.path.normpath(os.path.join(root, dir)))
+        os.chdir(cwd)
+        return categoryset
+
+
+    def scan_for_categorised_files(self, rootdir, categoryset):
+        filelist = []
         for category in categoryset:
-            assemblycategorydir = os.path.join('assemblies', category)
-            if os.path.exists(assemblycategorydir):
-                for entry in os.listdir(assemblycategorydir):
-                    pathname = os.path.join('assemblies', category, entry)
+            categorydir = os.path.join(rootdir, category)
+            if os.path.exists(categorydir):
+                for entry in os.listdir(categorydir):
+                    pathname = os.path.join(rootdir, category, entry)
                     if os.path.isfile(pathname):
-                        assemblylist.append(pathname)
+                        filelist.append(pathname)
+        return filelist
+
+
+    def _update_fix_includes(self, categoryset):
+        assemblyfiles = self.scan_for_categorised_files('assemblies', categoryset)
+        modulefiles = self.scan_for_categorised_files('modules', categoryset)
+        imagefiles = self.scan_for_categorised_files('images', categoryset)
+        # Create dictionaries mapping norm(filename) -> [pathname, pathname, ...]
+        assemblyfiledict = {}
+        for filepath in assemblyfiles:
+            head, tail = os.path.split(filepath)
+            normfilename = self.context.moduleFactory.normalize_filename(tail)
+            if normfilename not in assemblyfiledict:
+                assemblyfiledict[normfilename] = [filepath]
+            else:
+                assemblyfiledict[normfilename].append(filepath)
+        modulefiledict = {}
+        for filepath in modulefiles:
+            head, tail = os.path.split(filepath)
+            normfilename = self.context.moduleFactory.normalize_filename(tail)
+            if normfilename not in modulefiledict:
+                modulefiledict[normfilename] = [filepath]
+            else:
+                modulefiledict[normfilename].append(filepath)
+        # Scan and update include directives in assembly files
+        for assemblyfile in assemblyfiles:
+            self.update_include_directives(assemblyfile, assemblyfiledict, modulefiledict)
+
+
+    def update_include_directives(self, file, assemblyfiledict, modulefiledict):
+        print 'Updating include directives for file: ' + file
+        regexp = re.compile(r'^\s*include::([^\[\{]+)\[([^\]]*)\]')
+        dirname = os.path.dirname(file)
+        # Create temp file
+        fh, abs_path = tempfile.mkstemp()
+        with os.fdopen(fh, 'w') as new_file:
+            with open(file) as old_file:
+                for line in old_file:
+                    if line.lstrip().startswith('include::'):
+                        #print '\t' + line.strip()
+                        result = regexp.search(line)
+                        if result is not None:
+                            includepath = result.group(1)
+                            testpath = os.path.normpath(os.path.join(dirname, includepath))
+                            if not os.path.exists(testpath):
+                                includedir, includefile = os.path.split(includepath)
+                                normincludefile = self.context.moduleFactory.normalize_filename(includefile)
+                                if self.type_of_file(normincludefile) == 'assembly':
+                                    # Assembly case
+                                    if normincludefile in assemblyfiledict:
+                                        pathlist = assemblyfiledict[normincludefile]
+                                        new_includepath = self.choose_includepath(dirname, pathlist)
+                                        if new_includepath is not None:
+                                            new_file.write('include::' + new_includepath + '[' + result.group(2) + ']\n')
+                                            print 'Replacing: ' + includepath + ' with ' + new_includepath
+                                            continue
+                                else:
+                                    # Module case
+                                    if normincludefile in modulefiledict:
+                                        pathlist = modulefiledict[normincludefile]
+                                        new_includepath = self.choose_includepath(dirname, pathlist)
+                                        if new_includepath is not None:
+                                            new_file.write('include::' + new_includepath + '[' + result.group(2) + ']\n')
+                                            print 'Replacing: ' + includepath + ' with ' + new_includepath
+                                            continue
+                        else:
+                            print 'WARN: Unparsable include:' + line.strip()
+                    new_file.write(line)
+        # Remove original file
+        os.remove(file)
+        # Move new file
+        shutil.move(abs_path, file)
+
+
+    def choose_includepath(self, basedir, pathlist):
+        if len(pathlist) == 1:
+            return os.path.relpath(pathlist[0], basedir)
+        else:
+            print '\tChoose the correct path for the included file or S to skip:'
+            for k, path in enumerate(pathlist):
+                print '\t' + str(k) + ') ' + path
+            print '\tS) Skip and leave this include unchanged'
+            response = ''
+            while response.strip() == '':
+                response = raw_input('\tEnter selection [S]: ')
+                response = response.strip()
+                if (response == '') or (response.lower() == 's'):
+                    # Skip
+                    return None
+                elif (0 <= int(response)) and (int(response) < len(pathlist)):
+                    return os.path.relpath(pathlist[int(response)], basedir)
+                else:
+                    response = ''
+            return None
+
+
+    def _update_parent_assemblies(self, assemblylist):
         # Create dictionary of modules included by assemblies
         assemblyincludes = {}
         for assemblyfile in assemblylist:
@@ -416,7 +529,9 @@ book_parser.set_defaults(func=tasks.book)
 # Create the sub-parser for the 'update' command
 update_parser = subparsers.add_parser('update', help='Update metadata in modules and assemblies')
 update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
+update_parser.add_argument('--fix-includes', help='Fix erroneous include directives in assemblies', action='store_true')
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
+update_parser.add_argument('-b', '--book', help='Apply update only to the specified book')
 update_parser.set_defaults(func=tasks.update)
 
 

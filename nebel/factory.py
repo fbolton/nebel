@@ -12,6 +12,12 @@ class ModuleFactory:
     def __init__(self, context):
         self.context = context
 
+    def lreplace(self, pat, sub, target):
+        if target.startswith(pat):
+            return sub + target[len(pat):]
+        else:
+            return target
+
     def name_of_file(self, metadata):
         moduleid = metadata['ModuleID']
         type = metadata['Type'].lower()
@@ -26,6 +32,15 @@ class ModuleFactory:
         else:
             print 'ERROR: Unknown module Type: ' + str(type)
             sys.exit()
+
+    def normalize_filename(self, filename):
+        normalized = filename.replace('_', '-')
+        normalized = self.lreplace('as-', 'as_', normalized)
+        normalized = self.lreplace('p-', 'p_', normalized)
+        normalized = self.lreplace('c-', 'c_', normalized)
+        normalized = self.lreplace('r-', 'r_', normalized)
+        return normalized
+
 
     def module_dirpath(self, metadata):
         category = metadata['Category']
