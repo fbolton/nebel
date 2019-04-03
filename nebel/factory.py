@@ -73,7 +73,7 @@ class ModuleFactory:
                 if (field in metadata) and (field.lower() != 'title') and (field.lower() != 'includefiles'):
                     filehandle.write('// ' + field + ': ' + metadata[field] + '\n')
             filehandle.write('\n')
-            filehandle.write("[id='" + metadata['ModuleID'] + "']\n")
+            filehandle.write('[id="' + metadata['ModuleID'] + '"]\n')
             templatefile = os.path.join(self.context.templatePath, type + '.adoc')
             with open(templatefile, 'r') as templatehandle:
                 if 'Title' in metadata:

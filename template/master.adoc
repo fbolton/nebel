@@ -3,7 +3,7 @@ include::attributes.adoc[]
 
 // :imagesdir: .
 
-[id='book-title']
+[id="book-title"]
 = Book Title
 
 // Add include directives to include modules and assemblies here
