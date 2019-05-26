@@ -12,6 +12,7 @@ import shutil
 import argparse
 import nebel.context
 import nebel.factory
+import datetime
 
 class Tasks:
     def __init__(self, context):
@@ -54,8 +55,11 @@ class Tasks:
         if fromfile.endswith('.csv'):
             self._create_from_csv(args)
             return
-        elif fromfile.endswith('.adoc') and os.path.basename(fromfile).startswith('as'):
+        elif fromfile.startswith('assemblies') and fromfile.endswith('.adoc') and os.path.basename(fromfile).startswith('as'):
             self._create_from_assembly(args)
+            return
+        elif fromfile.endswith('.adoc'):
+            self._create_from_legacy(args)
             return
         else:
             print 'ERROR: Unknown file type [' + fromfile + ']: must end either in .csv or .adoc'
@@ -95,6 +99,186 @@ class Tasks:
                         metadata['ModuleID'] = self.moduleid_of_file(basename)
                         metadata['ParentAssemblies'] = asfile
                         self.context.moduleFactory.create(metadata)
+
+
+    def _create_from_legacy(self, args):
+        fromfile = args.FROM_FILE
+        metadata = {}
+        metadata['Category'] = 'default'
+        equalssigncount = 0
+        with open(fromfile, 'r') as f:
+            lines = f.readlines()
+        indexofnextline = 0
+        self._parse_from_legacy(metadata, fromfile, lines, indexofnextline, equalssigncount)
+
+    def _parse_from_legacy(
+            self,
+            metadata,
+            fromfilepath,
+            lines,
+            indexofnextline,
+            equalssigncount
+    ):
+        # Define some enums for state machine
+        REGULAR_LINES = 0
+        TENTATIVE_PARSING = 1
+
+        # Define action enums
+        NO_ACTION = 0
+        CREATE_SUBSECTION = 1
+        CREATE_MODULE_OR_ASSEMBLY = 2
+        END_CURRENT_MODULE = 3
+
+        # Initialize Boolean state variables
+        parsing_state = REGULAR_LINES
+        expecting_title_line = False
+        module_complete = False
+
+        # Define regular expressions
+        regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.*)')
+        regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
+        regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+
+        childmetadata = {}
+        parsedcontentlines = []
+
+        while not module_complete:
+            # Check for end of file
+            if indexofnextline >= len(lines):
+                if ('Type' in metadata) and (metadata['Type'].lower() == 'skip'):
+                    # Don't save current content
+                    return ('', len(lines))
+                elif 'Type' in metadata:
+                    generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                    return (generated_file, len(lines))
+                else:
+                    return ('', len(lines))
+
+            if parsing_state == REGULAR_LINES:
+                line = lines[indexofnextline]
+                if (regexp_metadata.search(line) is None) and (regexp_id_line1.search(line) is None) and (regexp_id_line2.search(line) is None) and (regexp_title.search(line) is None):
+                    # Regular line
+                    parsedcontentlines.append(line)
+                    indexofnextline += 1
+                else:
+                    # Switch state
+                    parsing_state = TENTATIVE_PARSING
+                    expecting_title_line = False
+                    index_of_tentative_block = indexofnextline
+                    tentativecontentlines = []
+            elif parsing_state == TENTATIVE_PARSING:
+                line = lines[indexofnextline]
+                tentativecontentlines.append(line)
+                indexofnextline += 1
+                # Skip blank lines
+                if line.strip() == '':
+                    continue
+                # Parse title line
+                result = regexp_title.search(line)
+                if result is not None:
+                    childequalssigncount = len(result.group(1))
+                    title = result.group(2)
+                    if 'Title' not in childmetadata:
+                        childmetadata['Title'] = title
+                    else:
+                        childmetadata['ConvertedFromTitle'] = title
+                    if ('Type' in metadata) and (metadata['Type'].lower() == 'skip'):
+                        childmetadata['Type'] = 'skip'
+                    action = NO_ACTION
+                    # Decide how to proceed based on level of new heading
+                    if childequalssigncount > equalssigncount:
+                        if 'Type' not in childmetadata:
+                            action = CREATE_SUBSECTION
+                        else:
+                            action = CREATE_MODULE_OR_ASSEMBLY
+                    elif childequalssigncount == equalssigncount:
+                        if ('Type' in childmetadata) and (childmetadata['Type'].lower() == 'continue'):
+                            action = CREATE_SUBSECTION
+                        else:
+                            action = END_CURRENT_MODULE
+                    else:
+                        # childequalssigncount < equalssigncount
+                        action = END_CURRENT_MODULE
+                    # Perform action
+                    if action == CREATE_SUBSECTION:
+                        # It's a simple subsection, not a module or assembly
+                        # Reformat heading as a simple heading (starts with .)
+                        lastline = tentativecontentlines.pop()
+                        lastline = '.' + lastline.replace('=', '').lstrip()
+                        # Put back tentative lines
+                        for tentativeline in tentativecontentlines:
+                            parsedcontentlines.append(tentativeline)
+                        parsedcontentlines.append(lastline)
+                    elif action == CREATE_MODULE_OR_ASSEMBLY:
+                        if ('ModuleID' not in childmetadata):
+                            print 'ERROR: Heading ' + title + ' must have a module ID.'
+                            sys.exit()
+                        if ('Category' not in childmetadata):
+                            childmetadata['Category'] = metadata['Category']
+                        childmetadata['ConversionStatus'] = 'raw'
+                        childmetadata['ConversionDate'] = str(datetime.datetime.now())
+                        childmetadata['ConvertedFromFile'] = fromfilepath
+                        (generated_file, indexofnextline) = self._parse_from_legacy(
+                            childmetadata,
+                            fromfilepath,
+                            lines,
+                            indexofnextline,
+                            childequalssigncount
+                        )
+                        childmetadata = {}
+                        parsedcontentlines.append('\n')
+                        if generated_file:
+                            parsedcontentlines.append('include::../../' + generated_file + '[leveloffset=+1]\n\n')
+                    elif action == END_CURRENT_MODULE:
+                        if metadata['Type'].lower() == 'skip':
+                            # Don't save current content and back up to the start of the tentative block
+                            return ('', index_of_tentative_block)
+                        # Save the current content
+                        generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                        return (generated_file, index_of_tentative_block)
+                    # Switch state
+                    parsing_state = REGULAR_LINES
+                    expecting_title_line = False
+                    continue
+                # Parse metadata line
+                result = regexp_metadata.search(line)
+                if (result is not None) and not expecting_title_line:
+                    metadata_name = result.group(1)
+                    metadata_value = result.group(2)
+                    if metadata_name in self.context.allMetadataFields:
+                        childmetadata[metadata_name] = metadata_value
+                    #print 'Metadata: ' + metadata_name + ' = ' + metadata_value
+                    continue
+                # Parse ID line
+                original_id = ''
+                result = regexp_id_line1.search(line)
+                if result is not None:
+                    original_id = result.group(1)
+                result = regexp_id_line2.search(line)
+                if result is not None:
+                    original_id = result.group(1)
+                if original_id and not expecting_title_line:
+                    if 'ModuleID' not in childmetadata:
+                        childmetadata['ModuleID'] = original_id
+                    else:
+                        childmetadata['ConvertedFromID'] = original_id
+                    # An ID line should be followed by a title line
+                    expecting_title_line = True
+                    continue
+                else:
+                    # Failed to match any of the tentative block line types!
+                    # Abort the tentative block parsing
+                    childmetadata = {}
+                    # Put back tentative lines
+                    for tentativeline in tentativecontentlines:
+                        parsedcontentlines.append(tentativeline)
+                    # Switch state
+                    parsing_state = REGULAR_LINES
+                    expecting_title_line = False
+
+
+
 
 
     def _scan_assembly_for_includes(self,asfile):
@@ -528,8 +712,8 @@ add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
-create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file or from an assembly file')
-create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv) or an assembly file (ending with .adoc)')
+create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file, an assembly file, or a legacy AsciiDoc file')
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with assemblies/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)')
 create_parser.add_argument('--generate-includes', help='Generate include directives in assemblies, working on the assumption that the modules listed after an assembly are meant to be included in that assembly', action='store_true')
 create_parser.set_defaults(func=tasks.create_from)
 

@@ -18,7 +18,12 @@ class NebelContext:
             'QuickstartID',
             'Jira',
             'Title',
-            'IncludeFiles'
+            'IncludeFiles',
+            'ConversionStatus',
+            'ConversionDate',
+            'ConvertedFromFile',
+            'ConvertedFromID',
+            'ConvertedFromTitle'
         }
         self.allMetadataFields = self.mandatoryMetadataFields | self.optionalMetadataFields
         self.templatePath = ''

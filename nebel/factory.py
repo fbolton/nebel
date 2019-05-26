@@ -56,7 +56,7 @@ class ModuleFactory:
     def module_or_assembly_path(self, metadata):
         return os.path.join(self.module_dirpath(metadata), self.name_of_file(metadata))
 
-    def create(self, metadata):
+    def create(self, metadata, filecontents = None):
         type = metadata['Type'].lower()
         filename = self.name_of_file(metadata)
         dirpath = self.module_dirpath(metadata)
@@ -65,7 +65,7 @@ class ModuleFactory:
         filepath = os.path.join(dirpath, filename)
         if os.path.exists(filepath):
             print 'INFO: File already exists, skipping: ' + filename
-            return
+            return filepath
         with open(filepath, 'w') as filehandle:
             filehandle.write('// Metadata created by nebel\n')
             filehandle.write('//\n')
@@ -74,16 +74,24 @@ class ModuleFactory:
                     filehandle.write('// ' + field + ': ' + metadata[field] + '\n')
             filehandle.write('\n')
             filehandle.write('[id="' + metadata['ModuleID'] + '"]\n')
-            templatefile = os.path.join(self.context.templatePath, type + '.adoc')
-            with open(templatefile, 'r') as templatehandle:
-                if 'Title' in metadata:
-                    # Replace the title from the first line of the template
-                    templatehandle.readline()
-                    filehandle.write('= ' + metadata['Title'] + '\n')
-                # Process the rest of the file
-                for line in templatehandle:
-                    if line.startswith('//INCLUDE') and ('IncludeFiles' in metadata):
-                        for filepath in metadata['IncludeFiles'].split(','):
-                            filehandle.write('include::../../' + filepath + '[leveloffset=+1]\n\n')
-                    else:
-                        filehandle.write(line)
+            if filecontents is not None:
+                # If filecontents is provided, write the contents verbatim
+                filehandle.write('= ' + metadata['Title'] + '\n')
+                filehandle.writelines(filecontents)
+                return filepath
+            else:
+                # If no filecontents provided, generate contents from template
+                templatefile = os.path.join(self.context.templatePath, type + '.adoc')
+                with open(templatefile, 'r') as templatehandle:
+                    if 'Title' in metadata:
+                        # Replace the title from the first line of the template
+                        templatehandle.readline()
+                        filehandle.write('= ' + metadata['Title'] + '\n')
+                    # Process the rest of the file
+                    for line in templatehandle:
+                        if line.startswith('//INCLUDE') and ('IncludeFiles' in metadata):
+                            for filepath in metadata['IncludeFiles'].split(','):
+                                filehandle.write('include::../../' + filepath + '[leveloffset=+1]\n\n')
+                        else:
+                            filehandle.write(line)
+        return filepath
