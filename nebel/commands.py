@@ -240,6 +240,7 @@ class Tasks:
                     # Switch state
                     parsing_state = REGULAR_LINES
                     expecting_title_line = False
+                    childmetadata = {}
                     continue
                 # Parse metadata line
                 result = regexp_metadata.search(line)
@@ -269,13 +270,13 @@ class Tasks:
                 else:
                     # Failed to match any of the tentative block line types!
                     # Abort the tentative block parsing
-                    childmetadata = {}
                     # Put back tentative lines
                     for tentativeline in tentativecontentlines:
                         parsedcontentlines.append(tentativeline)
                     # Switch state
                     parsing_state = REGULAR_LINES
                     expecting_title_line = False
+                    childmetadata = {}
 
 
 
