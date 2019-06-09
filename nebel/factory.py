@@ -6,6 +6,7 @@ Created on January 2, 2019
 
 import os
 import sys
+import re
 import nebel.context
 
 class ModuleFactory:
@@ -19,16 +20,26 @@ class ModuleFactory:
             return target
 
     def name_of_file(self, metadata):
-        moduleid = metadata['ModuleID']
         type = metadata['Type'].lower()
+        moduleid = metadata['ModuleID']
+        if not moduleid.endswith('{context}'):
+            coremoduleid = moduleid
+        else:
+            tmpstr = moduleid.replace('{context}', '')
+            regexp = re.compile(r'[_\-]+$')
+            result = regexp.search(tmpstr)
+            if result is None:
+                print 'ERROR: Cannot parse ModuleID: ' + moduleid
+                sys.exit()
+            coremoduleid = regexp.sub('', tmpstr)
         if type == 'assembly':
-            return 'as_' + moduleid + '.adoc'
+            return 'as_' + coremoduleid + '.adoc'
         elif type == 'procedure':
-            return 'p_' + moduleid + '.adoc'
+            return 'p_' + coremoduleid + '.adoc'
         elif type == 'concept':
-            return 'c_' + moduleid + '.adoc'
+            return 'c_' + coremoduleid + '.adoc'
         elif type == 'reference':
-            return 'r_' + moduleid + '.adoc'
+            return 'r_' + coremoduleid + '.adoc'
         else:
             print 'ERROR: Unknown module Type: ' + str(type)
             sys.exit()

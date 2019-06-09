@@ -325,7 +325,7 @@ class Tasks:
                         if (value == '') or (field not in self.context.allMetadataFields):
                             del(metadata[field])
                     if 'Type' not in metadata:
-                        # Assume it's an empty row
+                        # Assume it's an empty row (i.e. fields are empty, row is just commas)
                         if args.generate_includes:
                             if currassemblymetadata:
                                 # Finish up current (pending) assembly, if any
