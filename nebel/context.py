@@ -49,10 +49,10 @@ class NebelContext:
                         self.attributeDict[name] = [value, None]
         for name in self.attributeDict:
             self.attributeDict[name][1] = self.resolve_raw_attribute_value(self.attributeDict[name][0])
-        for (name,duple) in self.attributeDict.items():
-            print name + ': ' + duple[0] + ', ' + duple[1]
+        # for (name,duple) in self.attributeDict.items():
+        #     print name + ': ' + duple[0] + ', ' + duple[1]
         self.scan_attributes_for_book_urls()
-        print self.bookUrlAttributes
+        # print self.bookUrlAttributes
 
 
     def resolve_raw_attribute_value(self, value):
