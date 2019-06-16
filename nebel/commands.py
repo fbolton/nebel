@@ -466,13 +466,19 @@ class Tasks:
                           | self.scan_for_categories(os.path.join(args.book, 'assemblies'))
         else:
             categoryset = self.scan_for_categories('modules') | self.scan_for_categories('assemblies')
+        if args.attribute_files:
+            attrfilelist = args.attribute_files.strip().split(',')
+        else:
+            attrfilelist = None
         # Select the kind of update to implement
         if args.fix_includes:
             self._update_fix_includes(categoryset)
+        if args.fix_links:
+            self._update_fix_links(attrfilelist)
         if args.parent_assemblies:
             assemblylist = self.scan_for_categorised_files('assemblies', categoryset)
             self._update_parent_assemblies(assemblylist)
-        if (not args.fix_includes) and (not args.parent_assemblies):
+        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links):
             print 'ERROR: Missing required option(s)'
 
 
@@ -613,6 +619,12 @@ class Tasks:
             metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
             self.update_metadata(modulefile, metadata)
 
+    def _update_fix_links(self, filelist = None):
+        if filelist is not None:
+            self.context.parse_attribute_files(filelist)
+        else:
+            print 'ERROR: No attribute files specified'
+
 
     def update_metadata(self, file, metadata):
         print 'Updating metadata for file: ' + file
@@ -727,10 +739,12 @@ book_parser.set_defaults(func=tasks.book)
 
 # Create the sub-parser for the 'update' command
 update_parser = subparsers.add_parser('update', help='Update metadata in modules and assemblies')
-update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
 update_parser.add_argument('--fix-includes', help='Fix erroneous include directives in assemblies', action='store_true')
+update_parser.add_argument('--fix-links', help='Fix erroneous cross-reference links (NOT FULLY IMPLEMENTED)', action='store_true')
+update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
 update_parser.add_argument('-b', '--book', help='Apply update only to the specified book')
+update_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
 update_parser.set_defaults(func=tasks.update)
 
 
