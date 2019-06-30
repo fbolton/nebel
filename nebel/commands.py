@@ -474,7 +474,7 @@ class Tasks:
         if args.fix_includes:
             self._update_fix_includes(categoryset)
         if args.fix_links:
-            self._update_fix_links(attrfilelist)
+            self._update_fix_links(categoryset,attrfilelist)
         if args.parent_assemblies:
             assemblylist = self.scan_for_categorised_files('assemblies', categoryset)
             self._update_parent_assemblies(assemblylist)
@@ -619,11 +619,201 @@ class Tasks:
             metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
             self.update_metadata(modulefile, metadata)
 
-    def _update_fix_links(self, filelist = None):
+    def _update_fix_links(self,categoryset, filelist = None):
+        # Parse the specified attributes files
         if filelist is not None:
             self.context.parse_attribute_files(filelist)
         else:
             print 'ERROR: No attribute files specified'
+        # Identify top-level book files to scan
+        booklist = []
+        for root, dirs, files in os.walk(os.curdir):
+            for dir in dirs:
+                # Test for existence of master.adoc file
+                bookdir = os.path.normpath(os.path.join(root, dir))
+                bookfile = os.path.join(bookdir, 'master.adoc')
+                if os.path.exists(bookfile):
+                    booklist.append(bookfile)
+        # Initialize anchor ID dictionary, context stack, and legacy ID lookup
+        anchorid_dict = {}
+        contextstack = []
+        legacyid_dict = {}
+        # Process each book in the list
+        for bookfile in booklist:
+            booktitle = self._scan_for_title(bookfile)
+            booktitle_slug = self._convert_title_to_slug(booktitle)
+            #print 'Title URL slug: ' + booktitle_slug
+            print 'Title: ' + booktitle
+            anchorid_dict, contextstack, legacyid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, booktitle_slug, bookfile)
+            #print anchorid_dict.keys()
+        #print anchorid_dict
+
+
+    def _scan_for_title(self, filepath):
+        if not os.path.exists(filepath):
+            print 'ERROR: _scan_for_title: No such file: ' + filepath
+            sys.exit()
+        rawtitle = ''
+        regexp = re.compile(r'^=\s+(\S.*)')
+        with open(filepath, 'r') as f:
+            for line in f:
+                result = regexp.search(line)
+                if result is not None:
+                    rawtitle = result.group(1)
+                    break
+            if rawtitle == '':
+                print 'ERROR: _scan_for_title: No title found in file: ' + filepath
+                sys.exit()
+        return self.context.resolve_raw_attribute_value(rawtitle)
+
+
+    def _parse_file_for_anchorids(self, anchorid_dict, contextstack, legacyid_dict, booktitle_slug, filepath):
+        # Define action enums
+        NO_ACTION = 0
+        ORDINARY_LINE = 1
+        METADATA_LINE = 2
+        ID_LINE = 3
+        TITLE_LINE = 4
+        CONTEXT_LINE = 5
+        INCLUDE_LINE = 6
+        BLANK_LINE = 7
+
+        # Initialize Boolean state variables
+        REMEMBER_TO_POP_CONTEXT = False
+
+        # Define regular expressions
+        regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.+)')
+        regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
+        regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+        regexp_context = re.compile(r'^:context:\s+([^\{\}]*)$')
+        regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
+        regexp_blank = re.compile(r'^\s*$')
+
+        if not os.path.exists(filepath):
+            print 'ERROR: _parse_file_for_anchorids: File does not exist: ' + filepath
+            sys.exit()
+        with open(filepath, 'r') as filehandle:
+            tentative_metadata = {}
+            tentative_anchor_id = ''
+            for line in filehandle:
+                action = NO_ACTION
+                # Parse the current line
+                while action == NO_ACTION:
+                    result = regexp_metadata.search(line)
+                    if result is not None:
+                        property = result.group(1)
+                        value = result.group(2)
+                        action = METADATA_LINE
+                        continue
+                    result = regexp_id_line1.search(line)
+                    if result is not None:
+                        rawanchorid = result.group(1)
+                        action = ID_LINE
+                        continue
+                    result = regexp_id_line2.search(line)
+                    if result is not None:
+                        rawanchorid = result.group(1).strip()
+                        action = ID_LINE
+                        continue
+                    result = regexp_title.search(line)
+                    if result is not None:
+                        rawtitle = result.group(2)
+                        title = self.context.resolve_raw_attribute_value(rawtitle)
+                        action = TITLE_LINE
+                        continue
+                    result = regexp_context.search(line)
+                    if result is not None:
+                        newcontext = result.group(1).strip()
+                        action = CONTEXT_LINE
+                        continue
+                    result = regexp_include.search(line)
+                    if result is not None:
+                        rawincludefile = result.group(1)
+                        includefile = self.context.resolve_raw_attribute_value(rawincludefile)
+                        action = INCLUDE_LINE
+                        continue
+                    result = regexp_blank.search(line)
+                    if result is not None:
+                        action = BLANK_LINE
+                        continue
+                    # Default action is ordinary line
+                    action = ORDINARY_LINE
+                # Take action
+                if action == BLANK_LINE:
+                    # It's a noop
+                    pass
+                elif (action == ORDINARY_LINE) and tentative_anchor_id:
+                    # Define an anchor ID that is not associated with a heading
+                    if tentative_anchor_id in anchorid_dict:
+                        print 'ERROR: Duplicate anchor ID: ' + tentative_anchor_id
+                        sys.exit()
+                    else:
+                        anchorid_dict[tentative_anchor_id] = {
+                            'FilePath': filepath,
+                            'BookTitleSlug': booktitle_slug
+                        }
+                    tentative_anchor_id = ''
+                    tentative_metadata = {}
+                elif action == ORDINARY_LINE:
+                    # After hitting an ordinary line, preceding metadata is no longer current
+                    tentative_metadata = {}
+                elif action == METADATA_LINE:
+                    if property in self.context.optionalMetadataFields:
+                        tentative_metadata[property] = value
+                elif action == ID_LINE:
+                    if rawanchorid.endswith('}'):
+                        if contextstack:
+                            currentcontext = contextstack[-1]
+                            anchorid = rawanchorid.replace('{context}', currentcontext)
+                        else:
+                            print 'ERROR: Found ID with embedded {context}, but no context attribute defined'
+                            sys.exit()
+                    else:
+                        anchorid = rawanchorid
+                    tentative_anchor_id = anchorid
+                elif (action == TITLE_LINE) and tentative_anchor_id:
+                    # Define an anchor ID that is associated with a heading
+                    if tentative_anchor_id in anchorid_dict:
+                        print 'ERROR: Duplicate anchor ID: ' + tentative_anchor_id
+                        sys.exit()
+                    else:
+                        anchorid_dict[tentative_anchor_id] = {
+                            'FilePath': filepath,
+                            'BookTitleSlug': booktitle_slug,
+                            'Title': title
+                        }
+                        if 'ConvertedFromID' in tentative_metadata:
+                            anchorid_dict[tentative_anchor_id]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
+                            legacyid_dict[tentative_metadata['ConvertedFromID']] = tentative_anchor_id
+                    tentative_anchor_id = ''
+                    tentative_metadata = {}
+                elif (action == TITLE_LINE) and not tentative_anchor_id:
+                    tentative_anchor_id = ''
+                    tentative_metadata = {}
+                elif action == CONTEXT_LINE:
+                    if not REMEMBER_TO_POP_CONTEXT:
+                        # First context definition in the current file
+                        contextstack.append(newcontext)
+                    else:
+                        # Context already defined, overwrite current value
+                        contextstack[-1] = newcontext
+                elif action == INCLUDE_LINE:
+                    currentdir, basename = os.path.split(filepath)
+                    includefile = os.path.normpath(os.path.join(currentdir, includefile))
+                    if not os.path.exists(includefile):
+                        print 'ERROR: Included file does not exist: ' + includefile
+                        sys.exit()
+                    anchorid_dict, contextstack, legacyid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, booktitle_slug, includefile)
+                    tentative_anchor_id = ''
+                    tentative_metadata = {}
+        if REMEMBER_TO_POP_CONTEXT:
+            contextstack.pop()
+        return anchorid_dict, contextstack, legacyid_dict
+
+
+    def _convert_title_to_slug(self, title):
+        return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
     def update_metadata(self, file, metadata):
