@@ -49,8 +49,8 @@ class NebelContext:
                         self.attributeDict[name] = [value, None]
         for name in self.attributeDict:
             self.attributeDict[name][1] = self.resolve_raw_attribute_value(self.attributeDict[name][0])
-        # for (name,duple) in self.attributeDict.items():
-        #     print name + ': ' + duple[0] + ', ' + duple[1]
+        #for (name,duple) in self.attributeDict.items():
+        #    print name + ': ' + duple[0] + ', ' + duple[1]
         self.scan_attributes_for_book_urls()
         # print self.bookUrlAttributes
 
@@ -60,15 +60,14 @@ class NebelContext:
         new_value = regexp.sub(self.replace_matching_attribute, value)
         return new_value
 
+
     def replace_matching_attribute(self, match_obj):
         name = match_obj.group(1)
         duple = self.attributeDict[name]
-        if duple[1] is not None:
-            # resolved attribute value
-            return duple[1]
-        else:
-            # raw attribute value
-            return duple[0]
+        if duple[1] is None:
+            duple[1] = self.resolve_raw_attribute_value(duple[0])
+        return duple[1]
+
 
     def scan_attributes_for_book_urls(self):
         regexp = re.compile(r'https://access.redhat.com/documentation/en-us/([^/]+)/([^/]+)/html-single/([^/]+)/?')
