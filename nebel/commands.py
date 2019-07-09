@@ -432,24 +432,30 @@ class Tasks:
         imagesdir = os.path.join(bookdir, 'images')
         modulesdir = os.path.join(bookdir, 'modules')
         assembliesdir = os.path.join(bookdir, 'assemblies')
-        if (not os.path.exists(imagesdir)) or (not os.path.exists(modulesdir)) or (not os.path.exists(assembliesdir)):
-            print 'ERROR: Book directory must have the subdirectories images, modules, and assemblies'
-            sys.exit()
+        if not os.path.exists(imagesdir):
+            os.mkdir(imagesdir)
+        if not os.path.exists(modulesdir):
+            os.mkdir(modulesdir)
+        if not os.path.exists(assembliesdir):
+            os.mkdir(assembliesdir)
         categorylist = args.category_list.split(',')
         map(str.strip, categorylist)
         for category in categorylist:
-            os.symlink(
-                os.path.join('..', '..', 'images', category),
-                os.path.join(imagesdir, category)
-            )
-            os.symlink(
-                os.path.join('..', '..', 'modules', category),
-                os.path.join(modulesdir, category)
-            )
-            os.symlink(
-                os.path.join('..', '..', 'assemblies', category),
-                os.path.join(assembliesdir, category)
-            )
+            if not os.path.exists(os.path.join(imagesdir, category)):
+                os.symlink(
+                    os.path.join('..', '..', 'images', category),
+                    os.path.join(imagesdir, category)
+                )
+            if not os.path.exists(os.path.join(modulesdir, category)):
+                os.symlink(
+                    os.path.join('..', '..', 'modules', category),
+                    os.path.join(modulesdir, category)
+                )
+            if not os.path.exists(os.path.join(assembliesdir, category)):
+                os.symlink(
+                    os.path.join('..', '..', 'assemblies', category),
+                    os.path.join(assembliesdir, category)
+                )
 
 
     def update(self,args):
