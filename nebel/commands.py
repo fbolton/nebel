@@ -280,8 +280,6 @@ class Tasks:
 
 
 
-
-
     def _scan_assembly_for_includes(self,asfile):
         modulelist = []
         regexp = re.compile(r'^\s*include::[\./]*modules/([^\[]+)\[[^\]]*\]')
@@ -459,6 +457,9 @@ class Tasks:
 
 
     def update(self,args):
+        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links):
+            print 'ERROR: Missing required option(s)'
+            sys.exit()
         # Determine the set of categories to update
         categoryset = set()
         if args.category_list:
@@ -476,16 +477,16 @@ class Tasks:
             attrfilelist = args.attribute_files.strip().split(',')
         else:
             attrfilelist = None
+        assemblyfiles = self.scan_for_categorised_files('assemblies', categoryset)
+        modulefiles = self.scan_for_categorised_files('modules', categoryset)
+        imagefiles = self.scan_for_categorised_files('images', categoryset)
         # Select the kind of update to implement
         if args.fix_includes:
-            self._update_fix_includes(categoryset)
+            self._update_fix_includes(assemblyfiles, modulefiles)
         if args.fix_links:
-            self._update_fix_links(categoryset,attrfilelist)
+            self._update_fix_links(assemblyfiles, modulefiles, attrfilelist)
         if args.parent_assemblies:
-            assemblylist = self.scan_for_categorised_files('assemblies', categoryset)
-            self._update_parent_assemblies(assemblylist)
-        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links):
-            print 'ERROR: Missing required option(s)'
+            self._update_parent_assemblies(assemblyfiles)
 
 
     def scan_for_categories(self, rootdir):
@@ -511,10 +512,7 @@ class Tasks:
         return filelist
 
 
-    def _update_fix_includes(self, categoryset):
-        assemblyfiles = self.scan_for_categorised_files('assemblies', categoryset)
-        modulefiles = self.scan_for_categorised_files('modules', categoryset)
-        imagefiles = self.scan_for_categorised_files('images', categoryset)
+    def _update_fix_includes(self, assemblyfiles, modulefiles):
         # Create dictionaries mapping norm(filename) -> [pathname, pathname, ...]
         assemblyfiledict = {}
         for filepath in assemblyfiles:
@@ -534,10 +532,10 @@ class Tasks:
                 modulefiledict[normfilename].append(filepath)
         # Scan and update include directives in assembly files
         for assemblyfile in assemblyfiles:
-            self.update_include_directives(assemblyfile, assemblyfiledict, modulefiledict)
+            self._update_include_directives(assemblyfile, assemblyfiledict, modulefiledict)
 
 
-    def update_include_directives(self, file, assemblyfiledict, modulefiledict):
+    def _update_include_directives(self, file, assemblyfiledict, modulefiledict):
         print 'Updating include directives for file: ' + file
         regexp = re.compile(r'^\s*include::([^\[\{]+)\[([^\]]*)\]')
         dirname = os.path.dirname(file)
@@ -625,10 +623,12 @@ class Tasks:
             metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
             self.update_metadata(modulefile, metadata)
 
-    def _update_fix_links(self,categoryset, filelist = None):
+    def _update_fix_links(self, assemblyfiles, modulefiles, attrfilelist = None):
+        # Set of files whose links should be fixed
+        fixfileset = set(assemblyfiles) | set(modulefiles)
         # Parse the specified attributes files
-        if filelist is not None:
-            self.context.parse_attribute_files(filelist)
+        if attrfilelist is not None:
+            self.context.parse_attribute_files(attrfilelist)
         else:
             print 'ERROR: No attribute files specified'
         # Identify top-level book files to scan
@@ -653,6 +653,52 @@ class Tasks:
             anchorid_dict, contextstack, legacyid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, booktitle_slug, bookfile)
             #print anchorid_dict.keys()
         #print anchorid_dict
+        self.anchorid_dict = anchorid_dict
+        self.legacyid_dict = legacyid_dict
+
+        for fixfile in fixfileset:
+            print 'Updating links for file: ' + fixfile
+            dirname = os.path.dirname(fixfile)
+            # Create temp file
+            fh, abs_path = tempfile.mkstemp()
+            with os.fdopen(fh, 'w') as new_file:
+                with open(fixfile) as old_file:
+                    for line in old_file:
+                        line = self._regexp_replace_angles(line)
+                        line = self._regexp_replace_xref(line)
+                        new_file.write(line)
+            # Remove original file
+            os.remove(fixfile)
+            # Move new file
+            shutil.move(abs_path, fixfile)
+
+
+    def _regexp_replace_angles(self, value):
+        regexp = re.compile(r'<<([\w\-]+),?([^>]*)>>')
+        new_value = regexp.sub(self._on_match_xref, value)
+        return new_value
+
+
+    def _regexp_replace_xref(self, value):
+        regexp = re.compile(r'xref:([\w\-]+)\[([^]]*)\]')
+        new_value = regexp.sub(self._on_match_xref, value)
+        return new_value
+
+
+    def _on_match_xref(self, match_obj):
+        anchorid = match_obj.group(1)
+        optionaltext = match_obj.group(2)
+        if anchorid in self.anchorid_dict:
+            new_anchorid = anchorid
+        elif anchorid in self.legacyid_dict:
+            new_anchorid = self.legacyid_dict[anchorid]
+        else:
+            print 'WARNING: link to unknown ID: ' + anchorid
+            new_anchorid = anchorid
+        if optionaltext:
+            return '<<' + new_anchorid + ',' + optionaltext + '>>'
+        else:
+            return '<<' + new_anchorid + '>>'
 
 
     def _scan_for_title(self, filepath):
@@ -671,6 +717,10 @@ class Tasks:
                 print 'ERROR: _scan_for_title: No title found in file: ' + filepath
                 sys.exit()
         return self.context.resolve_raw_attribute_value(rawtitle)
+
+
+    def _convert_title_to_slug(self, title):
+        return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
     def _parse_file_for_anchorids(self, anchorid_dict, contextstack, legacyid_dict, booktitle_slug, filepath):
@@ -751,14 +801,13 @@ class Tasks:
                     pass
                 elif (action == ORDINARY_LINE) and tentative_anchor_id:
                     # Define an anchor ID that is not associated with a heading
-                    if tentative_anchor_id in anchorid_dict:
-                        print 'ERROR: Duplicate anchor ID: ' + tentative_anchor_id
-                        sys.exit()
+                    if tentative_anchor_id not in anchorid_dict:
+                        # Initialize the sub-dictionary
+                        anchorid_dict[tentative_anchor_id] = {}
+                    if booktitle_slug in anchorid_dict[tentative_anchor_id]:
+                        print 'WARNING: Anchor ID: ' + tentative_anchor_id + 'appears more than once in book: ' + booktitle_slug
                     else:
-                        anchorid_dict[tentative_anchor_id] = {
-                            'FilePath': filepath,
-                            'BookTitleSlug': booktitle_slug
-                        }
+                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath }
                     tentative_anchor_id = ''
                     tentative_metadata = {}
                 elif action == ORDINARY_LINE:
@@ -780,17 +829,15 @@ class Tasks:
                     tentative_anchor_id = anchorid
                 elif (action == TITLE_LINE) and tentative_anchor_id:
                     # Define an anchor ID that is associated with a heading
-                    if tentative_anchor_id in anchorid_dict:
-                        print 'ERROR: Duplicate anchor ID: ' + tentative_anchor_id
-                        sys.exit()
+                    if tentative_anchor_id not in anchorid_dict:
+                        # Initialize the sub-dictionary
+                        anchorid_dict[tentative_anchor_id] = {}
+                    if booktitle_slug in anchorid_dict[tentative_anchor_id]:
+                        print 'WARNING: Anchor ID: ' + tentative_anchor_id + 'appears more than once in book: ' + booktitle_slug
                     else:
-                        anchorid_dict[tentative_anchor_id] = {
-                            'FilePath': filepath,
-                            'BookTitleSlug': booktitle_slug,
-                            'Title': title
-                        }
+                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath, 'Title': title }
                         if 'ConvertedFromID' in tentative_metadata:
-                            anchorid_dict[tentative_anchor_id]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
+                            anchorid_dict[tentative_anchor_id][booktitle_slug]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
                             legacyid_dict[tentative_metadata['ConvertedFromID']] = tentative_anchor_id
                     tentative_anchor_id = ''
                     tentative_metadata = {}
@@ -816,10 +863,6 @@ class Tasks:
         if REMEMBER_TO_POP_CONTEXT:
             contextstack.pop()
         return anchorid_dict, contextstack, legacyid_dict
-
-
-    def _convert_title_to_slug(self, title):
-        return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
     def update_metadata(self, file, metadata):
