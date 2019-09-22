@@ -101,8 +101,8 @@ class ModuleFactory:
                     # Process the rest of the file
                     for line in templatehandle:
                         if line.startswith('//INCLUDE') and ('IncludeFiles' in metadata):
-                            for filepath in metadata['IncludeFiles'].split(','):
-                                filehandle.write('include::../../' + filepath + '[leveloffset=+1]\n\n')
+                            for includedfilepath in metadata['IncludeFiles'].split(','):
+                                filehandle.write('include::' + os.path.relpath(includedfilepath, dirpath) + '[leveloffset=+1]\n\n')
                         else:
                             filehandle.write(line)
         return filepath

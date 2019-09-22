@@ -320,7 +320,7 @@ class Tasks:
                         continue
                     # Weed out irrelevant metadata entries
                     for field,value in metadata.items():
-                        if (value == '') or (field not in self.context.allMetadataFields):
+                        if field not in self.context.allMetadataFields:
                             del(metadata[field])
                     if 'Type' not in metadata:
                         # Assume it's an empty row (i.e. fields are empty, row is just commas)
