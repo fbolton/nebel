@@ -66,6 +66,7 @@ class Tasks:
             sys.exit()
 
     def type_of_file(self, basename):
+        # ToDo: Should be more flexible at recognizing file types
         if basename.startswith('as_'):
             return 'assembly'
         elif basename.startswith('p_'):
@@ -497,6 +498,8 @@ class Tasks:
             for dir in dirs:
                 categoryset.add(os.path.normpath(os.path.join(root, dir)))
         os.chdir(cwd)
+        # Add the empty category to the category set
+        categoryset.add('')
         return categoryset
 
 
