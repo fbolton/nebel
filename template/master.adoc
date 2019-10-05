@@ -8,6 +8,6 @@ include::attributes.adoc[]
 
 // Add include directives to include modules and assemblies here
 
-\include::modules/apicurito/p_adding-apicurito-service-ocp.adoc[leveloffset=+1]
+// \include::modules/apicurito/p_adding-apicurito-service-ocp.adoc[leveloffset=+1]
 
-\include::assemblies/apicurito/as_create-api.adoc[leveloffset=+1]
+// \include::assemblies/apicurito/as_create-api.adoc[leveloffset=+1]
