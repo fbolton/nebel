@@ -323,7 +323,7 @@ class Tasks:
                     for field,value in metadata.items():
                         if field not in self.context.allMetadataFields:
                             del(metadata[field])
-                    if 'Type' not in metadata:
+                    if metadata['Type'] == '':
                         # Assume it's an empty row (i.e. fields are empty, row is just commas)
                         if args.generate_includes:
                             if currassemblymetadata:
