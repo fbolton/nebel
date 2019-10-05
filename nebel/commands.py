@@ -55,7 +55,9 @@ class Tasks:
         if fromfile.endswith('.csv'):
             self._create_from_csv(args)
             return
-        elif fromfile.startswith('assemblies') and fromfile.endswith('.adoc') and os.path.basename(fromfile).startswith('as'):
+        elif fromfile.startswith('assemblies')\
+                and fromfile.endswith('.adoc')\
+                and os.path.basename(fromfile).startswith(self.context.ASSEMBLY_PREFIX):
             self._create_from_assembly(args)
             return
         elif fromfile.endswith('.adoc'):
@@ -67,13 +69,13 @@ class Tasks:
 
     def type_of_file(self, basename):
         # ToDo: Should be more flexible at recognizing file types
-        if basename.startswith('as_'):
+        if basename.startswith(self.context.ASSEMBLY_PREFIX + '_'):
             return 'assembly'
-        elif basename.startswith('p_'):
+        elif basename.startswith(self.context.PROCEDURE_PREFIX + '_'):
             return 'procedure'
-        elif basename.startswith('c_'):
+        elif basename.startswith(self.context.CONCEPT_PREFIX + '_'):
             return 'concept'
-        elif basename.startswith('r_'):
+        elif basename.startswith(self.context.REFERENCE_PREFIX + '_'):
             return 'reference'
         else:
             return None

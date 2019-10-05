@@ -32,6 +32,10 @@ class NebelContext:
         self.moduleFactory = None
         self.attributeDict = {}
         self.bookUrlAttributes = {}
+        self.ASSEMBLY_PREFIX = 'as'
+        self.PROCEDURE_PREFIX = 'p'
+        self.CONCEPT_PREFIX = 'c'
+        self.REFERENCE_PREFIX = 'r'
 
     def initializeFromFile(self, configfile):
         # print 'Initializing from file: ' + configfile
