@@ -5,6 +5,8 @@ Created on January 2, 2019
 '''
 
 import re
+import ConfigParser
+
 
 class NebelContext:
     def __init__(self):
@@ -39,7 +41,18 @@ class NebelContext:
 
     def initializeFromFile(self, configfile):
         # print 'Initializing from file: ' + configfile
-        pass
+        config = ConfigParser.RawConfigParser(
+            {'prefix.assembly': self.ASSEMBLY_PREFIX,
+             'prefix.procedure': self.PROCEDURE_PREFIX,
+             'prefix.concept': self.CONCEPT_PREFIX,
+             'prefix.reference': self.REFERENCE_PREFIX}
+        )
+        config.read(configfile)
+        if config.has_section('Nebel'):
+            self.ASSEMBLY_PREFIX  = config.get('Nebel','prefix.assembly')
+            self.PROCEDURE_PREFIX = config.get('Nebel', 'prefix.procedure')
+            self.CONCEPT_PREFIX   = config.get('Nebel', 'prefix.concept')
+            self.REFERENCE_PREFIX = config.get('Nebel', 'prefix.reference')
 
     def parse_attribute_files(self, filelist):
         regexp = re.compile(r'^:([\w\-]+):\s+(.*)')
