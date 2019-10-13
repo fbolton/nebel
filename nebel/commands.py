@@ -29,7 +29,10 @@ class Tasks:
             metadata['Jira'] = args.jira
         if args.parent_assemblies:
             metadata['ParentAssemblies'] = args.parent_assemblies
-        self.context.moduleFactory.create(metadata)
+        modulefile = self.context.moduleFactory.create(metadata)
+        if args.parent_assemblies:
+            for assemblyfile in args.parent_assemblies.split():
+                self.add_include_to_assembly(assemblyfile, modulefile)
 
     def create_assembly(self,args):
         metadata = {'Type':'assembly'}
@@ -46,6 +49,41 @@ class Tasks:
     def create_reference(self,args):
         metadata = {'Type':'reference'}
         self._create(args, metadata)
+
+    def add_include_to_assembly(self, assemblyfile, includedfile):
+        if not os.path.exists(assemblyfile):
+            print 'WARN: Referenced assembly file does not exist:' + assemblyfile
+            return
+        # Create temp file
+        fh, abs_path = tempfile.mkstemp()
+        with os.fdopen(fh, 'w') as new_file:
+            with open(assemblyfile) as old_file:
+                # Find the position in the file to add the include directive
+                position_of_new_include = -1
+                len_old_file = 0
+                for k, line in enumerate(old_file):
+                    len_old_file += 1
+                    if line.lstrip().startswith('include::'):
+                        position_of_new_include = k
+                    if line.lstrip().startswith('//INCLUDES'):
+                        position_of_new_include = k
+                if position_of_new_include == -1:
+                    # Default to end of the file
+                    position_of_new_include = len_old_file - 1
+                # Reset the file stream to the beginning
+                old_file.seek(0)
+                # Write the new file, with added include
+                for k, line in enumerate(old_file):
+                    new_file.write(line)
+                    if k == position_of_new_include:
+                        relpath = os.path.relpath(includedfile, os.path.dirname(assemblyfile))
+                        new_file.write('\n')
+                        new_file.write('include::' + relpath + '[leveloffset=+1]\n\n')
+        # Remove original file
+        os.remove(assemblyfile)
+        # Move new file
+        shutil.move(abs_path, assemblyfile)
+
 
     def create_from(self,args):
         fromfile = args.FROM_FILE
