@@ -116,11 +116,17 @@ class Tasks:
         elif basename.startswith(self.context.REFERENCE_PREFIX + '_'):
             return 'reference'
         else:
-            return None
+            return 'module'
 
     def moduleid_of_file(self, basename):
         base, ext = os.path.splitext(basename)
-        return base.split('_', 1)[1]
+        if base.startswith(self.context.ASSEMBLY_PREFIX + '_') or \
+            base.startswith(self.context.PROCEDURE_PREFIX + '_') or \
+            base.startswith(self.context.CONCEPT_PREFIX + '_') or \
+            base.startswith(self.context.REFERENCE_PREFIX + '_'):
+            return base.split('_', 1)[1]
+        else:
+            return base
 
     def _create_from_assembly(self,args):
         asfile = args.FROM_FILE

@@ -39,6 +39,9 @@ class ModuleFactory:
             return self.context.CONCEPT_PREFIX + '_' + coremoduleid + '.adoc'
         elif type == 'reference':
             return self.context.REFERENCE_PREFIX + '_' + coremoduleid + '.adoc'
+        elif type == 'module':
+            # For a generic module of unknown type, do not attach a prefix
+            return coremoduleid + '.adoc'
         else:
             print 'ERROR: Unknown module Type: ' + str(type)
             sys.exit()
@@ -57,7 +60,7 @@ class ModuleFactory:
         type = metadata['Type'].lower()
         if type == 'assembly':
             return os.path.join('assemblies', category)
-        elif type in ['procedure', 'concept', 'reference']:
+        elif type in ['procedure', 'concept', 'reference', 'module']:
             return os.path.join('modules', category)
         else:
             print 'ERROR: Unknown module Type: ' + str(type)
@@ -89,8 +92,12 @@ class ModuleFactory:
                 filehandle.write('= ' + metadata['Title'] + '\n')
                 filehandle.writelines(filecontents)
                 return filepath
+            elif type == 'module':
+                # Cannot use a template, because we do not know the exact module type
+                filehandle.write('= ' + metadata['Title'] + '\n')
+                return filepath
             else:
-                # If no filecontents provided, generate contents from template
+                # Generate contents from template
                 templatefile = os.path.join(self.context.templatePath, type + '.adoc')
                 with open(templatefile, 'r') as templatehandle:
                     if 'Title' in metadata:
