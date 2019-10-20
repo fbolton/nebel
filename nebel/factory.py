@@ -7,7 +7,6 @@ Created on January 2, 2019
 import os
 import sys
 import re
-import nebel.context
 
 class ModuleFactory:
     def __init__(self, context):
