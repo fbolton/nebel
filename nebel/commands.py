@@ -93,7 +93,7 @@ class Tasks:
         if fromfile.endswith('.csv'):
             self._create_from_csv(args)
             return
-        elif fromfile.startswith('assemblies')\
+        elif fromfile.startswith(self.context.ASSEMBLIES_DIR)\
                 and fromfile.endswith('.adoc')\
                 and os.path.basename(fromfile).startswith(self.context.ASSEMBLY_PREFIX):
             self._create_from_assembly(args)
@@ -329,16 +329,24 @@ class Tasks:
 
     def _scan_assembly_for_includes(self,asfile):
         modulelist = []
-        regexp = re.compile(r'^\s*include::[\./]*modules/([^\[]+)\[[^\]]*\]')
+        if self.context.MODULES_DIR == '.':
+            regexp = re.compile(r'^\s*include::[\./]*([^\[]+)\[[^\]]*\]')
+        else:
+            regexp = re.compile(r'^\s*include::[\./]*{}/([^\[]+)\[[^\]]*\]'.format(self.context.MODULES_DIR))
         with open(asfile, 'r') as f:
             for line in f:
                 result = regexp.search(line)
                 if result is not None:
                     modulefile = result.group(1)
                     category, basename = os.path.split(modulefile)
+                    if category == '':
+                        # Case where assembly files and module files are located in the same directory
+                        # => use the category from the assembly file
+                        category, discard = os.path.split(asfile)
+                        modulefile = os.path.normpath(os.path.join(category, modulefile))
                     type = self.type_of_file(basename)
                     if type is not None and basename.endswith('.adoc'):
-                        modulelist.append(os.path.join('modules', modulefile))
+                        modulelist.append(os.path.join(self.context.MODULES_DIR, modulefile))
         return modulelist
 
 
@@ -436,6 +444,9 @@ class Tasks:
 
 
     def book(self,args):
+        if self.context.ASSEMBLIES_DIR == '.' or self.context.MODULES_DIR == '.':
+            print 'ERROR: book command is only usable for a standard directory layout, with defined assemblies and modules directories'
+            sys.exit()
         if args.create:
             # Create book and (optionally) add categories
             self._book_create(args)
@@ -452,9 +463,9 @@ class Tasks:
             print 'ERROR: Book directory already exists: ' + bookdir
             sys.exit()
         os.mkdir(bookdir)
-        os.mkdir(os.path.join(bookdir, 'assemblies'))
-        os.mkdir(os.path.join(bookdir, 'modules'))
-        os.mkdir(os.path.join(bookdir, 'images'))
+        os.mkdir(os.path.join(bookdir, self.context.ASSEMBLIES_DIR))
+        os.mkdir(os.path.join(bookdir, self.context.MODULES_DIR))
+        os.mkdir(os.path.join(bookdir, self.context.IMAGES_DIR))
         os.symlink(os.path.join('..', 'shared', 'attributes.adoc'), os.path.join(bookdir, 'attributes.adoc'))
         os.symlink(
             os.path.join('..', 'shared', 'attributes-links.adoc'),
@@ -474,9 +485,9 @@ class Tasks:
         if not os.path.exists(bookdir):
             print 'ERROR: Book directory does not exist: ' + bookdir
             sys.exit()
-        imagesdir = os.path.join(bookdir, 'images')
-        modulesdir = os.path.join(bookdir, 'modules')
-        assembliesdir = os.path.join(bookdir, 'assemblies')
+        imagesdir = os.path.join(bookdir, self.context.IMAGES_DIR)
+        modulesdir = os.path.join(bookdir, self.context.MODULES_DIR)
+        assembliesdir = os.path.join(bookdir, self.context.ASSEMBLIES_DIR)
         if not os.path.exists(imagesdir):
             os.mkdir(imagesdir)
         if not os.path.exists(modulesdir):
@@ -488,17 +499,17 @@ class Tasks:
         for category in categorylist:
             if not os.path.exists(os.path.join(imagesdir, category)):
                 os.symlink(
-                    os.path.join('..', '..', 'images', category),
+                    os.path.join('..', '..', self.context.IMAGES_DIR, category),
                     os.path.join(imagesdir, category)
                 )
             if not os.path.exists(os.path.join(modulesdir, category)):
                 os.symlink(
-                    os.path.join('..', '..', 'modules', category),
+                    os.path.join('..', '..', self.context.MODULES_DIR, category),
                     os.path.join(modulesdir, category)
                 )
             if not os.path.exists(os.path.join(assembliesdir, category)):
                 os.symlink(
-                    os.path.join('..', '..', 'assemblies', category),
+                    os.path.join('..', '..', self.context.ASSEMBLIES_DIR, category),
                     os.path.join(assembliesdir, category)
                 )
 
@@ -516,17 +527,17 @@ class Tasks:
             if not os.path.exists(args.book):
                 print 'ERROR: ' + args.book + ' directory does not exist.'
                 sys.exit()
-            categoryset = self.scan_for_categories(os.path.join(args.book, 'modules'))\
-                          | self.scan_for_categories(os.path.join(args.book, 'assemblies'))
+            categoryset = self.scan_for_categories(os.path.join(args.book, self.context.MODULES_DIR))\
+                          | self.scan_for_categories(os.path.join(args.book, self.context.ASSEMBLIES_DIR))
         else:
-            categoryset = self.scan_for_categories('modules') | self.scan_for_categories('assemblies')
+            categoryset = self.scan_for_categories(self.context.MODULES_DIR) | self.scan_for_categories(self.context.ASSEMBLIES_DIR)
         if args.attribute_files:
             attrfilelist = args.attribute_files.strip().split(',')
         else:
             attrfilelist = None
-        assemblyfiles = self.scan_for_categorised_files('assemblies', categoryset)
-        modulefiles = self.scan_for_categorised_files('modules', categoryset)
-        imagefiles = self.scan_for_categorised_files('images', categoryset)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        modulefiles = self.scan_for_categorised_files(self.context.MODULES_DIR, categoryset, filefilter='module')
+        imagefiles = self.scan_for_categorised_files(self.context.IMAGES_DIR, categoryset)
         # Select the kind of update to implement
         if args.fix_includes:
             self._update_fix_includes(assemblyfiles, modulefiles)
@@ -549,7 +560,7 @@ class Tasks:
         return categoryset
 
 
-    def scan_for_categorised_files(self, rootdir, categoryset):
+    def scan_for_categorised_files(self, rootdir, categoryset, filefilter=None):
         filelist = []
         for category in categoryset:
             categorydir = os.path.join(rootdir, category)
@@ -557,7 +568,12 @@ class Tasks:
                 for entry in os.listdir(categorydir):
                     pathname = os.path.join(rootdir, category, entry)
                     if os.path.isfile(pathname):
-                        filelist.append(pathname)
+                        if filefilter is None:
+                            filelist.append(pathname)
+                        elif filefilter == 'assembly' and self.type_of_file(entry) == 'assembly':
+                            filelist.append(pathname)
+                        elif filefilter == 'module' and self.type_of_file(entry) in ['module', 'concept', 'procedure', 'reference']:
+                            filelist.append(pathname)
         return filelist
 
 
@@ -1013,8 +1029,8 @@ add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
-create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file, an assembly file, or a legacy AsciiDoc file')
-create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with assemblies/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)')
+create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)'.format(context.ASSEMBLIES_DIR))
 create_parser.add_argument('--generate-includes', help='Generate include directives in assemblies, working on the assumption that the modules listed after an assembly are meant to be included in that assembly', action='store_true')
 create_parser.set_defaults(func=tasks.create_from)
 
