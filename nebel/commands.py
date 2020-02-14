@@ -128,6 +128,14 @@ class Tasks:
         else:
             return base
 
+    def title_to_id(self, title):
+        title = title.strip()
+        # Remove any character which is not a dash, underscore, alphanumeric, or whitespace
+        title = re.sub(r'[^0-9a-zA-Z_\-\s]+', '', title)
+        # Replace one or more contiguous whitespaces with a dash
+        title = re.sub(r'\s+', '-', title)
+        return title
+
     def _create_from_assembly(self,args):
         asfile = args.FROM_FILE
         regexp = re.compile(r'^\s*include::[\./]*modules/([^\[]+)\[[^\]]*\]')
@@ -515,7 +523,7 @@ class Tasks:
 
 
     def update(self,args):
-        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links):
+        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links) and (not args.generate_ids):
             print 'ERROR: Missing required option(s)'
             sys.exit()
         # Determine the set of categories to update
@@ -545,6 +553,8 @@ class Tasks:
             self._update_fix_links(assemblyfiles, modulefiles, attrfilelist)
         if args.parent_assemblies:
             self._update_parent_assemblies(assemblyfiles)
+        if args.generate_ids:
+            self._update_generate_ids(assemblyfiles, modulefiles)
 
 
     def scan_for_categories(self, rootdir):
@@ -929,6 +939,40 @@ class Tasks:
             contextstack.pop()
         return anchorid_dict, contextstack, legacyid_dict
 
+    def _update_generate_ids(self, assemblyfiles, modulefiles):
+        # Set of files for which IDs should be generated
+        fixfileset = set(assemblyfiles) | set(modulefiles)
+
+        # Define regular expressions
+        regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
+        regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+
+        for fixfile in fixfileset:
+            print 'Adding missing IDs to file: ' + fixfile
+            dirname, basename = os.path.split(os.path.normpath(fixfile))
+            idprefix = dirname.replace(os.sep, '-').replace('_', '-') + '-' + self.moduleid_of_file(basename)
+            # Create temp file
+            fh, abs_path = tempfile.mkstemp()
+            with os.fdopen(fh, 'w') as new_file:
+                with open(fixfile) as old_file:
+                    prevline = ''
+                    for line in old_file:
+                        if (regexp_title.search(line) is not None)\
+                                and (regexp_id_line1.search(prevline) is None)\
+                                and (regexp_id_line2.search(prevline) is None):
+                            # Parse title line
+                            result = regexp_title.search(line)
+                            title = result.group(2)
+                            # Insert module ID
+                            new_file.write('[id="' + idprefix + '-' + self.title_to_id(title) + '"]\n')
+                        new_file.write(line)
+                        prevline = line
+            # Remove original file
+            os.remove(fixfile)
+            # Move new file
+            shutil.move(abs_path, fixfile)
+
 
     def update_metadata(self, file, metadata):
         print 'Updating metadata for file: ' + file
@@ -1049,6 +1093,7 @@ update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemb
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
 update_parser.add_argument('-b', '--book', help='Apply update only to the specified book')
 update_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
+update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
 update_parser.set_defaults(func=tasks.update)
 
 
