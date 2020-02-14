@@ -957,6 +957,8 @@ class Tasks:
             with os.fdopen(fh, 'w') as new_file:
                 with open(fixfile) as old_file:
                     prevline = ''
+                    newidlist = []
+                    disambig_suffix = 1
                     for line in old_file:
                         if (regexp_title.search(line) is not None)\
                                 and (regexp_id_line1.search(prevline) is None)\
@@ -965,7 +967,12 @@ class Tasks:
                             result = regexp_title.search(line)
                             title = result.group(2)
                             # Insert module ID
-                            new_file.write('[id="' + idprefix + '-' + self.title_to_id(title) + '"]\n')
+                            newid = idprefix + '-' + self.title_to_id(title)
+                            if newid in newidlist:
+                                newid = newid + '-' + '{0:0>3}'.format(disambig_suffix)
+                                disambig_suffix += 1
+                            newidlist.append(newid)
+                            new_file.write('[id="' + newid + '"]\n')
                         new_file.write(line)
                         prevline = line
             # Remove original file
