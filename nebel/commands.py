@@ -926,6 +926,7 @@ class Tasks:
                     else:
                         # Context already defined, overwrite current value
                         contextstack[-1] = newcontext
+                    REMEMBER_TO_POP_CONTEXT = True
                 elif action == INCLUDE_LINE:
                     currentdir, basename = os.path.split(filepath)
                     includefile = os.path.normpath(os.path.join(currentdir, includefile))
