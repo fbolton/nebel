@@ -50,7 +50,7 @@ class Tasks:
         metadata = {'Type':'reference'}
         self._create(args, metadata)
 
-    def add_include_to_assembly(self, assemblyfile, includedfile):
+    def add_include_to_assembly(self, assemblyfile, includedfile, leveloffset=1):
         if not os.path.exists(assemblyfile):
             print 'WARN: Referenced assembly file does not exist:' + assemblyfile
             return
@@ -78,7 +78,7 @@ class Tasks:
                     if k == position_of_new_include:
                         relpath = os.path.relpath(includedfile, os.path.dirname(assemblyfile))
                         new_file.write('\n')
-                        new_file.write('include::' + relpath + '[leveloffset=+1]\n\n')
+                        new_file.write('include::' + relpath + '[leveloffset=+' + str(leveloffset) + ']\n\n')
         # Remove original file
         os.remove(assemblyfile)
         # Move new file
@@ -360,6 +360,7 @@ class Tasks:
 
     def _create_from_csv(self,args):
         csvfile = args.FROM_FILE
+        USING_LEVELS = False
         with open(csvfile, 'r') as filehandle:
             # First line should be the column headings
             headings = filehandle.readline().strip().replace(' ','')
@@ -368,11 +369,20 @@ class Tasks:
             if ('Category' not in headinglist) or ('ModuleID' not in headinglist):
                 print 'ERROR: CSV file does not have correct format'
                 sys.exit()
+            if 'Level' in headinglist:
+                USING_LEVELS = True
+            # Create initial copy of the generated-master.adoc file
+            MASTERDOC_FILENAME = 'generated-master.adoc'
+            templatefile = os.path.join(self.context.templatePath, 'master.adoc')
+            shutil.copyfile(templatefile, MASTERDOC_FILENAME)
+            # Initialize variables to track level nesting
+            nestedfilestack = []
+            nestedlevelstack = []
+            currentfile = MASTERDOC_FILENAME
+            currentlevel = 0
+            # Read and parse the CSV file
             completefile = filehandle.read()
             lines = self.smart_split(completefile, '\n', preserveQuotes=True)
-            currassemblymetadata = {}
-            currassemblyincludes = []
-            currassemblypath = ''
             for line in lines:
                 if line.strip() != '':
                     fieldlist = self.smart_split(line.strip())
@@ -387,38 +397,35 @@ class Tasks:
                             del(metadata[field])
                     if metadata['Type'] == '':
                         # Assume it's an empty row (i.e. fields are empty, row is just commas)
-                        if args.generate_includes:
-                            if currassemblymetadata:
-                                # Finish up current (pending) assembly, if any
-                                if currassemblyincludes:
-                                    currassemblymetadata['IncludeFiles'] = ','.join(currassemblyincludes)
-                                self.context.moduleFactory.create(currassemblymetadata)
-                            # Reset the current assembly
-                            currassemblymetadata = {}
-                            currassemblyincludes = []
-                            currassemblypath = ''
+                        if (not USING_LEVELS) and (currentlevel == 1):
+                            # Pop back to level 0
+                            currentfile = nestedfilestack.pop()
+                            currentlevel = nestedlevelstack.pop()
                         # Skip empty row
                         continue
-                    elif (metadata['Type'] == 'assembly') and args.generate_includes:
-                        if currassemblymetadata:
-                            # Finish up current (pending) assembly, if any
-                            if currassemblyincludes:
-                                currassemblymetadata['IncludeFiles'] = ','.join(currassemblyincludes)
-                            self.context.moduleFactory.create(currassemblymetadata)
-                        # Reset the current assembly
-                        currassemblymetadata = metadata
-                        currassemblyincludes = []
-                        currassemblypath = self.context.moduleFactory.module_or_assembly_path(metadata)
+                    # Process modules and assemblies
+                    if USING_LEVELS:
+                        level = int(metadata['Level'])
                     else:
-                        if currassemblypath:
-                            metadata['ParentAssemblies'] = currassemblypath
-                            currassemblyincludes.append(self.context.moduleFactory.module_or_assembly_path(metadata))
-                        self.context.moduleFactory.create(metadata)
-            if currassemblymetadata:
-                # Finish up current (pending) assembly, if any
-                if currassemblyincludes:
-                    currassemblymetadata['IncludeFiles'] = ','.join(currassemblyincludes)
-                self.context.moduleFactory.create(currassemblymetadata)
+                        if (metadata['Type'] == 'assembly'):
+                            # For sheets without levels, assemblies are always level 1
+                            level = 1
+                        else:
+                            # Calculate module level, for a sheet without levels
+                            level = currentlevel + 1
+                    while level <= currentlevel:
+                        # Dig back through the stack to find the parent of this module or assembly
+                        currentfile = nestedfilestack.pop()
+                        currentlevel = nestedlevelstack.pop()
+                    metadata['ParentAssemblies'] = currentfile
+                    newfile = self.context.moduleFactory.create(metadata)
+                    self.add_include_to_assembly(currentfile, newfile, level - currentlevel)
+                    if (metadata['Type'] == 'assembly'):
+                        # Push the assembly onto the level stack
+                        nestedfilestack.append(currentfile)
+                        nestedlevelstack.append(currentlevel)
+                        currentfile = newfile
+                        currentlevel = level
 
 
     def smart_split(self, line, splitchar=',', preserveQuotes=False):
@@ -505,17 +512,17 @@ class Tasks:
         categorylist = args.category_list.split(',')
         map(str.strip, categorylist)
         for category in categorylist:
-            if not os.path.exists(os.path.join(imagesdir, category)):
+            if not os.path.islink(os.path.join(imagesdir, category)):
                 os.symlink(
                     os.path.join('..', '..', self.context.IMAGES_DIR, category),
                     os.path.join(imagesdir, category)
                 )
-            if not os.path.exists(os.path.join(modulesdir, category)):
+            if not os.path.islink(os.path.join(modulesdir, category)):
                 os.symlink(
                     os.path.join('..', '..', self.context.MODULES_DIR, category),
                     os.path.join(modulesdir, category)
                 )
-            if not os.path.exists(os.path.join(assembliesdir, category)):
+            if not os.path.islink(os.path.join(assembliesdir, category)):
                 os.symlink(
                     os.path.join('..', '..', self.context.ASSEMBLIES_DIR, category),
                     os.path.join(assembliesdir, category)
@@ -1083,7 +1090,6 @@ reference_parser.set_defaults(func=tasks.create_reference)
 # Create the sub-parser for the 'create-from' command
 create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
 create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('--generate-includes', help='Generate include directives in assemblies, working on the assumption that the modules listed after an assembly are meant to be included in that assembly', action='store_true')
 create_parser.set_defaults(func=tasks.create_from)
 
 # Create the sub-parser for the 'book' command

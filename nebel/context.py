@@ -27,7 +27,8 @@ class NebelContext:
             'ConversionDate',
             'ConvertedFromFile',
             'ConvertedFromID',
-            'ConvertedFromTitle'
+            'ConvertedFromTitle',
+            'Level'
         }
         self.allMetadataFields = self.mandatoryMetadataFields | self.optionalMetadataFields
         self.templatePath = ''
