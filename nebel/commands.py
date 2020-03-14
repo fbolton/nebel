@@ -684,7 +684,7 @@ class Tasks:
             return None
 
 
-    def _update_parent_assemblies(self, assemblylist):
+    def _scan_for_parent_assemblies(self, assemblylist):
         # Create dictionary of modules included by assemblies
         assemblyincludes = {}
         for assemblyfile in assemblylist:
@@ -698,12 +698,17 @@ class Tasks:
                     parentassemblies[modulefile] = [assemblyfile]
                 else:
                     parentassemblies[modulefile].append(assemblyfile)
-        # print parentassemblies
+        return parentassemblies
+
+
+    def _update_parent_assemblies(self, assemblylist):
+        parentassemblies = self._scan_for_parent_assemblies(assemblylist)
         # Update the ParentAssemblies metadata in each of the module files
         metadata = {}
         for modulefile in parentassemblies:
             metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
             self.update_metadata(modulefile, metadata)
+
 
     def _update_fix_links(self, assemblyfiles, modulefiles, attrfilelist = None):
         # Set of files whose links should be fixed
@@ -1040,6 +1045,60 @@ class Tasks:
         shutil.move(abs_path, file)
 
 
+    def mv(self, args):
+        fromfile = os.path.normpath(args.FROM_FILE)
+        tofile = os.path.normpath(args.TO_FILE)
+        # print 'FROM_FILE = ' + fromfile
+        # print 'TO_FILE = ' + tofile
+        # Perform basic sanity checks
+        if not os.path.exists(fromfile):
+            print 'WARN: Origin file does not exist (skipping): ' + fromfile
+            return
+        if os.path.exists(tofile):
+            print 'WARN: File already exists at destination (skipping)' + tofile
+            return
+        # Make sure that the destination directory exists
+        destination_dir, basename = os.path.split(tofile)
+        if not os.path.exists(destination_dir):
+            os.makedirs(destination_dir)
+        # Move the file
+        os.rename(fromfile, tofile)
+        # Update the affected 'include' directives in other files
+        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles)
+        # print parentassemblies[fromfile]
+        if parentassemblies[fromfile] is not None:
+            for parentassembly in parentassemblies[fromfile]:
+                self._rename_included_file(parentassembly, fromfile, tofile)
+
+
+    def _rename_included_file(self, file, fromfile, tofile):
+        # Ignore include paths with attribute substitutions
+        regexp = re.compile(r'^\s*include::([^\[\{]+)\[([^\]]*)\]')
+        dirname = os.path.dirname(file)
+        # Create temp file
+        fh, abs_path = tempfile.mkstemp()
+        with os.fdopen(fh, 'w') as new_file:
+            with open(file) as old_file:
+                for line in old_file:
+                    if line.lstrip().startswith('include::'):
+                        # print '\t' + line.strip()
+                        result = regexp.search(line)
+                        if result is not None:
+                            includepath = result.group(1)
+                            testpath = os.path.normpath(os.path.join(dirname, includepath))
+                            if testpath == os.path.normpath(fromfile):
+                                relpath = os.path.relpath(tofile, dirname)
+                                new_file.write('include::' + relpath + '[' + result.group(2) + ']\n')
+                                continue
+                    new_file.write(line)
+        # Remove original file
+        os.remove(file)
+        # Move new file
+        shutil.move(abs_path, file)
+
+
 def add_module_arguments(parser):
     parser.add_argument('CATEGORY', help='Category in which to store this module. Can use / as a separator to define sub-categories')
     parser.add_argument('MODULE_ID', help='Unique ID to identify this module')
@@ -1098,6 +1157,12 @@ book_parser.add_argument('BOOK_DIR', help='The book directory')
 book_parser.add_argument('--create', help='Create a new book directory', action='store_true')
 book_parser.add_argument('-c', '--category-list', help='Comma-separated list of categories to add to book (enclose in quotes)')
 book_parser.set_defaults(func=tasks.book)
+
+# Create the sub-parser for the 'mv' command
+book_parser = subparsers.add_parser('mv', help='Move (or rename) module or assembly files')
+book_parser.add_argument('FROM_FILE', help='File origin')
+book_parser.add_argument('TO_FILE', help='File destination')
+book_parser.set_defaults(func=tasks.mv)
 
 # Create the sub-parser for the 'update' command
 update_parser = subparsers.add_parser('update', help='Update metadata in modules and assemblies')
