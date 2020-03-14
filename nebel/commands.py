@@ -1182,9 +1182,9 @@ book_parser.add_argument('-c', '--category-list', help='Comma-separated list of 
 book_parser.set_defaults(func=tasks.book)
 
 # Create the sub-parser for the 'mv' command
-book_parser = subparsers.add_parser('mv', help='Move (or rename) module or assembly files')
-book_parser.add_argument('FROM_FILE', help='File origin')
-book_parser.add_argument('TO_FILE', help='File destination')
+book_parser = subparsers.add_parser('mv', help='Move (or rename) module or assembly files. You can optionally use a single instance of braces for globbing/substituting. For example, to change a file prefix from p_ to proc_ you could enter: nebel mv p_{}.adoc proc_{}.adoc')
+book_parser.add_argument('FROM_FILE', help='File origin. Optionally use {} for globbing.')
+book_parser.add_argument('TO_FILE', help='File destination. Optionally use {} to substitute captured glob content')
 book_parser.set_defaults(func=tasks.mv)
 
 # Create the sub-parser for the 'update' command
