@@ -13,6 +13,7 @@ import argparse
 import nebel.context
 import nebel.factory
 import datetime
+import glob
 
 class Tasks:
     def __init__(self, context):
@@ -1046,10 +1047,36 @@ class Tasks:
 
 
     def mv(self, args):
-        fromfile = os.path.normpath(args.FROM_FILE)
-        tofile = os.path.normpath(args.TO_FILE)
-        # print 'FROM_FILE = ' + fromfile
-        # print 'TO_FILE = ' + tofile
+        frompattern = os.path.normpath(args.FROM_FILE)
+        topattern = os.path.normpath(args.TO_FILE)
+        # Generate a database of parent assemblies
+        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles)
+        # print parentassemblies[fromfile]
+        # Move each file
+        if frompattern.find('{}') == -1:
+            # No glob patterns => move a single file
+            self._mv_single_file(parentassemblies, fromfile=frompattern, tofile=topattern)
+        elif frompattern.count('{}') != 1:
+            print 'ERROR: More than one glob pattern {} is not allowed in FROM_FILE'
+            sys.exit()
+        elif topattern.count('{}') != 1:
+            print 'ERROR: TO_FILE must contain a {} substitution pattern'
+            sys.exit()
+        else:
+            fromprefix, fromsuffix = frompattern.split('{}')
+            fromprefixlen = len(fromprefix)
+            fromsuffixlen = len(fromsuffix)
+            fromfiles = glob.glob(frompattern.replace('{}', '*'))
+            for fromfile in fromfiles:
+                fromfilling = fromfile[fromprefixlen : -fromsuffixlen]
+                toprefix, tosuffix = topattern.split('{}')
+                tofile = toprefix + fromfilling + tosuffix
+                self._mv_single_file(parentassemblies, fromfile, tofile)
+
+
+    def _mv_single_file(self, parentassemblies, fromfile, tofile):
         # Perform basic sanity checks
         if not os.path.exists(fromfile):
             print 'WARN: Origin file does not exist (skipping): ' + fromfile
@@ -1064,10 +1091,6 @@ class Tasks:
         # Move the file
         os.rename(fromfile, tofile)
         # Update the affected 'include' directives in other files
-        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
-        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
-        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles)
-        # print parentassemblies[fromfile]
         if parentassemblies[fromfile] is not None:
             for parentassembly in parentassemblies[fromfile]:
                 self._rename_included_file(parentassembly, fromfile, tofile)
