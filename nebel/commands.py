@@ -336,27 +336,19 @@ class Tasks:
 
 
 
-    def _scan_assembly_for_includes(self,asfile):
-        modulelist = []
-        if self.context.MODULES_DIR == '.':
-            regexp = re.compile(r'^\s*include::[\./]*([^\[]+)\[[^\]]*\]')
-        else:
-            regexp = re.compile(r'^\s*include::[\./]*{}/([^\[]+)\[[^\]]*\]'.format(self.context.MODULES_DIR))
+    def _scan_file_for_includes(self, asfile):
+        includedfilelist = []
+        regexp = re.compile(r'^\s*include::([^\[]+)\[[^\]]*\]')
         with open(asfile, 'r') as f:
             for line in f:
                 result = regexp.search(line)
                 if result is not None:
-                    modulefile = result.group(1)
-                    category, basename = os.path.split(modulefile)
-                    if category == '':
-                        # Case where assembly files and module files are located in the same directory
-                        # => use the category from the assembly file
-                        category, discard = os.path.split(asfile)
-                        modulefile = os.path.normpath(os.path.join(category, modulefile))
-                    type = self.type_of_file(basename)
-                    if type is not None and basename.endswith('.adoc'):
-                        modulelist.append(os.path.join(self.context.MODULES_DIR, modulefile))
-        return modulelist
+                    includedfile = result.group(1)
+                    directory = os.path.dirname(asfile)
+                    path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
+                    if includedfile.endswith('.adoc'):
+                        includedfilelist.append(path_to_included_file)
+        return includedfilelist
 
 
     def _create_from_csv(self,args):
@@ -689,7 +681,7 @@ class Tasks:
         # Create dictionary of modules included by assemblies
         assemblyincludes = {}
         for assemblyfile in assemblylist:
-            assemblyincludes[assemblyfile] = self._scan_assembly_for_includes(assemblyfile)
+            assemblyincludes[assemblyfile] = self._scan_file_for_includes(assemblyfile)
         # print assemblyincludes
         # Invert dictionary
         parentassemblies = {}
@@ -1051,8 +1043,9 @@ class Tasks:
         topattern = os.path.normpath(args.TO_FILE)
         # Generate a database of parent assemblies
         categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
-        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
-        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
+        bookfiles = glob.glob('*/master.adoc')
+        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
         # print parentassemblies[fromfile]
         # Move each file
         if frompattern.find('{}') == -1:
@@ -1091,7 +1084,7 @@ class Tasks:
         # Move the file
         os.rename(fromfile, tofile)
         # Update the affected 'include' directives in other files
-        if parentassemblies[fromfile] is not None:
+        if parentassemblies.has_key(fromfile):
             for parentassembly in parentassemblies[fromfile]:
                 self._rename_included_file(parentassembly, fromfile, tofile)
 
@@ -1099,21 +1092,24 @@ class Tasks:
     def _rename_included_file(self, file, fromfile, tofile):
         # Ignore include paths with attribute substitutions
         regexp = re.compile(r'^\s*include::([^\[\{]+)\[([^\]]*)\]')
-        dirname = os.path.dirname(file)
+        dirname, basename = os.path.split(file)
         # Create temp file
         fh, abs_path = tempfile.mkstemp()
         with os.fdopen(fh, 'w') as new_file:
             with open(file) as old_file:
                 for line in old_file:
                     if line.lstrip().startswith('include::'):
-                        # print '\t' + line.strip()
                         result = regexp.search(line)
                         if result is not None:
                             includepath = result.group(1)
-                            testpath = os.path.normpath(os.path.join(dirname, includepath))
+                            # Compute unique relative path, factoring out any symbolic links
+                            testpath = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(dirname, includepath))))
                             if testpath == os.path.normpath(fromfile):
-                                relpath = os.path.relpath(tofile, dirname)
-                                new_file.write('include::' + relpath + '[' + result.group(2) + ']\n')
+                                if basename == 'master.adoc':
+                                    newincludepath = tofile
+                                else:
+                                    newincludepath = os.path.relpath(tofile, dirname)
+                                new_file.write('include::' + newincludepath + '[' + result.group(2) + ']\n')
                                 continue
                     new_file.write(line)
         # Remove original file
