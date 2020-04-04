@@ -390,8 +390,8 @@ class Tasks:
                             childbaselevel = int(leveloffset)
                     directory = os.path.dirname(file)
                     path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
-                    if 'tags' in optmap:
-                        print 'WARN: tags option not supported in include directive - skipping included file: ' + path_to_included_file
+                    if ('tags' in optmap) or ('tag' in optmap):
+                        print 'WARN: tag and tags options not supported in include directive - skipping included file: ' + path_to_included_file
                         continue
                     linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel))
                     continue
