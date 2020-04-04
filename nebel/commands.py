@@ -1147,7 +1147,7 @@ tasks = Tasks(context)
 
 # Create the top-level parser
 parser = argparse.ArgumentParser(prog='nebel')
-parser.add_argument('-v', '--version', action='version', version='Nebel 1.0.0')
+parser.add_argument('-v', '--version', action='version', version='Nebel 2.x.x (dev release)')
 subparsers = parser.add_subparsers()
 
 # Create the sub-parser for the 'assembly' command
