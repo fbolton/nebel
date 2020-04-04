@@ -32,13 +32,13 @@ class ModuleFactory:
                 sys.exit()
             coremoduleid = regexp.sub('', tmpstr)
         if type == 'assembly':
-            return self.context.ASSEMBLY_PREFIX + '_' + coremoduleid + '.adoc'
+            return self.context.ASSEMBLY_PREFIX + coremoduleid + '.adoc'
         elif type == 'procedure':
-            return self.context.PROCEDURE_PREFIX + '_' + coremoduleid + '.adoc'
+            return self.context.PROCEDURE_PREFIX + coremoduleid + '.adoc'
         elif type == 'concept':
-            return self.context.CONCEPT_PREFIX + '_' + coremoduleid + '.adoc'
+            return self.context.CONCEPT_PREFIX + coremoduleid + '.adoc'
         elif type == 'reference':
-            return self.context.REFERENCE_PREFIX + '_' + coremoduleid + '.adoc'
+            return self.context.REFERENCE_PREFIX + coremoduleid + '.adoc'
         elif type == 'module':
             # For a generic module of unknown type, do not attach a prefix
             return coremoduleid + '.adoc'
@@ -48,10 +48,6 @@ class ModuleFactory:
 
     def normalize_filename(self, filename):
         normalized = filename.replace('_', '-')
-        normalized = self.lreplace(self.context.ASSEMBLY_PREFIX + '-', self.context.ASSEMBLY_PREFIX + '_', normalized)
-        normalized = self.lreplace(self.context.PROCEDURE_PREFIX + '-', self.context.PROCEDURE_PREFIX + '_', normalized)
-        normalized = self.lreplace(self.context.CONCEPT_PREFIX + '-', self.context.CONCEPT_PREFIX + '_', normalized)
-        normalized = self.lreplace(self.context.REFERENCE_PREFIX + '-', self.context.REFERENCE_PREFIX + '_', normalized)
         return normalized
 
 

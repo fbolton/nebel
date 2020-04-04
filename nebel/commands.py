@@ -108,24 +108,27 @@ class Tasks:
 
     def type_of_file(self, basename):
         # ToDo: Should be more flexible at recognizing file types
-        if basename.startswith(self.context.ASSEMBLY_PREFIX + '_'):
+        if basename.startswith(self.context.ASSEMBLY_PREFIX):
             return 'assembly'
-        elif basename.startswith(self.context.PROCEDURE_PREFIX + '_'):
+        elif basename.startswith(self.context.PROCEDURE_PREFIX):
             return 'procedure'
-        elif basename.startswith(self.context.CONCEPT_PREFIX + '_'):
+        elif basename.startswith(self.context.CONCEPT_PREFIX):
             return 'concept'
-        elif basename.startswith(self.context.REFERENCE_PREFIX + '_'):
+        elif basename.startswith(self.context.REFERENCE_PREFIX):
             return 'reference'
         else:
             return 'module'
 
     def moduleid_of_file(self, basename):
         base, ext = os.path.splitext(basename)
-        if base.startswith(self.context.ASSEMBLY_PREFIX + '_') or \
-            base.startswith(self.context.PROCEDURE_PREFIX + '_') or \
-            base.startswith(self.context.CONCEPT_PREFIX + '_') or \
-            base.startswith(self.context.REFERENCE_PREFIX + '_'):
-            return base.split('_', 1)[1]
+        if base.startswith(self.context.ASSEMBLY_PREFIX):
+            return self.context.moduleFactory.lreplace(self.context.ASSEMBLY_PREFIX, '', base)
+        elif base.startswith(self.context.PROCEDURE_PREFIX):
+            return self.context.moduleFactory.lreplace(self.context.PROCEDURE_PREFIX, '', base)
+        elif base.startswith(self.context.CONCEPT_PREFIX):
+            return self.context.moduleFactory.lreplace(self.context.CONCEPT_PREFIX, '', base)
+        elif base.startswith(self.context.REFERENCE_PREFIX):
+            return self.context.moduleFactory.lreplace(self.context.REFERENCE_PREFIX, '', base)
         else:
             return base
 
