@@ -161,14 +161,24 @@ class Tasks:
 
 
     def _create_from_legacy(self, args):
-        fromfile = args.FROM_FILE
-        metadata = {}
-        metadata['Category'] = 'default'
-        equalssigncount = 0
-        with open(fromfile, 'r') as f:
-            lines = f.readlines()
-        indexofnextline = 0
-        self._parse_from_legacy(metadata, fromfile, lines, indexofnextline, equalssigncount)
+        frompattern = os.path.normpath(args.FROM_FILE)
+        fromfiles = glob.glob(frompattern)
+        for fromfile in fromfiles:
+            metadata = {}
+            categoryname = 'default'
+            if args.legacybasedir:
+                if not os.path.exists(args.legacybasedir):
+                    print 'ERROR: No such base directory: ' + args.legacybasedir
+                    sys.exit()
+                relativedir = os.path.dirname(os.path.relpath(fromfile, args.legacybasedir))
+                categoryname = relativedir.replace(os.path.sep, '-')
+            if args.category_prefix:
+                categoryname = args.category_prefix + '-' + categoryname
+            metadata['Category'] = categoryname
+            equalssigncount = 0
+            lines = self._resolve_includes(fromfile)
+            indexofnextline = 0
+            self._parse_from_legacy(metadata, fromfile, lines, indexofnextline, equalssigncount)
 
     def _parse_from_legacy(
             self,
@@ -352,6 +362,30 @@ class Tasks:
                     if includedfile.endswith('.adoc'):
                         includedfilelist.append(path_to_included_file)
         return includedfilelist
+
+    def _resolve_includes(self, file):
+        # Resolve all of the nested includes in 'file' to plain text and return a plain text array of all the lines in the file
+        # NB: This implementation does not process AsciiDoc leveloffsets
+        if not os.path.exists(file):
+            print 'ERROR: Include file not found: ' + file
+            sys.exit()
+        print 'Resolving includes in file: ' + file
+        linesinfile = []
+        regexp = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
+        with open(file, 'r') as f:
+            for line in f:
+                result = regexp.search(line)
+                if result is not None:
+                    includedfile = result.group(1)
+                    options      = result.group(2)
+                    if options.startswith('leveloffset'):
+                        print 'WARN: AsciiDoc leveloffset is not processed when resolving includes'
+                    directory = os.path.dirname(file)
+                    path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
+                    linesinfile.extend(self._resolve_includes(path_to_included_file))
+                else:
+                    linesinfile.append(line)
+        return linesinfile
 
 
     def _create_from_csv(self,args):
@@ -1176,6 +1210,8 @@ reference_parser.set_defaults(func=tasks.create_reference)
 # Create the sub-parser for the 'create-from' command
 create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
 create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)'.format(context.ASSEMBLIES_DIR))
+create_parser.add_argument('--legacybasedir', help='Base directory for legacy file content. Subdirectories of this directory are used as default categories.')
+create_parser.add_argument('--category-prefix', help='When generating from a legacy file, add this prefix to default categories.')
 create_parser.set_defaults(func=tasks.create_from)
 
 # Create the sub-parser for the 'book' command
