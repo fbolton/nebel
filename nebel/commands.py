@@ -1118,6 +1118,10 @@ class Tasks:
         shutil.move(abs_path, file)
 
 
+    def version(self, args):
+        pass
+
+
 def add_module_arguments(parser):
     parser.add_argument('CATEGORY', help='Category in which to store this module. Can use / as a separator to define sub-categories')
     parser.add_argument('MODULE_ID', help='Unique ID to identify this module')
@@ -1143,6 +1147,7 @@ tasks = Tasks(context)
 
 # Create the top-level parser
 parser = argparse.ArgumentParser(prog='nebel')
+parser.add_argument('-v', '--version', action='version', version='Nebel 1.0.0')
 subparsers = parser.add_subparsers()
 
 # Create the sub-parser for the 'assembly' command
