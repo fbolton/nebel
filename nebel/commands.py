@@ -219,7 +219,7 @@ class Tasks:
                     # Don't save current content
                     return ('', len(lines))
                 elif 'Type' in metadata:
-                    generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                    generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines, clobber=True)
                     return (generated_file, len(lines))
                 else:
                     return ('', len(lines))
@@ -304,7 +304,7 @@ class Tasks:
                             # Don't save current content and back up to the start of the tentative block
                             return ('', index_of_tentative_block)
                         # Save the current content
-                        generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                        generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines, clobber=True)
                         return (generated_file, index_of_tentative_block)
                     # Switch state
                     parsing_state = REGULAR_LINES
