@@ -88,9 +88,6 @@ class Tasks:
 
     def create_from(self,args):
         fromfile = args.FROM_FILE
-        if not os.path.exists(fromfile):
-            print 'ERROR: Cannot find file: ' + fromfile
-            sys.exit()
         if fromfile.endswith('.csv'):
             self._create_from_csv(args)
             return
@@ -393,6 +390,9 @@ class Tasks:
                             childbaselevel = int(leveloffset)
                     directory = os.path.dirname(file)
                     path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
+                    if 'tags' in optmap:
+                        print 'WARN: tags option not supported in include directive - skipping included file: ' + path_to_included_file
+                        continue
                     linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel))
                     continue
                 linesinfile.append(line)
