@@ -31,6 +31,7 @@ class ModuleFactory:
                 print 'ERROR: Cannot parse ModuleID: ' + moduleid
                 sys.exit()
             coremoduleid = regexp.sub('', tmpstr)
+        coremoduleid = coremoduleid.replace('_', '-')
         if type == 'assembly':
             return self.context.ASSEMBLY_PREFIX + coremoduleid + '.adoc'
         elif type == 'procedure':
