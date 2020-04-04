@@ -363,30 +363,50 @@ class Tasks:
                         includedfilelist.append(path_to_included_file)
         return includedfilelist
 
-    def _resolve_includes(self, file):
+    def _resolve_includes(self, file, baselevel=0):
         # Resolve all of the nested includes in 'file' to plain text and return a plain text array of all the lines in the file
-        # NB: This implementation does not process AsciiDoc leveloffsets
         if not os.path.exists(file):
             print 'ERROR: Include file not found: ' + file
             sys.exit()
-        print 'Resolving includes in file: ' + file
         linesinfile = []
-        regexp = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
+        regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
         with open(file, 'r') as f:
             for line in f:
-                result = regexp.search(line)
+                result = regexp_title.search(line)
+                if result is not None:
+                    childequalssigncount = len(result.group(1))
+                    title = result.group(2)
+                    linesinfile.append('=' * (childequalssigncount + baselevel) + ' ' + title)
+                    continue
+                result = regexp_include.search(line)
                 if result is not None:
                     includedfile = result.group(1)
                     options      = result.group(2)
-                    if options.startswith('leveloffset'):
-                        print 'WARN: AsciiDoc leveloffset is not processed when resolving includes'
+                    optmap = self._parse_include_opts(options)
+                    childbaselevel = baselevel
+                    if 'leveloffset' in optmap:
+                        leveloffset = optmap['leveloffset'].strip()
+                        if leveloffset.startswith('+'):
+                            childbaselevel = baselevel + int(leveloffset)
+                        else:
+                            childbaselevel = int(leveloffset)
                     directory = os.path.dirname(file)
                     path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
-                    linesinfile.extend(self._resolve_includes(path_to_included_file))
-                else:
-                    linesinfile.append(line)
+                    linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel))
+                    continue
+                linesinfile.append(line)
         return linesinfile
 
+    def _parse_include_opts(self, optstring):
+        # Returns a map of property, value pairs
+        optlist = optstring.split(',')
+        optmap = {}
+        for opt in optlist:
+            if opt.count('=') > 0:
+                (prop, value) = opt.split('=', 1)
+                optmap[prop.strip().lower()] = value.strip()
+        return optmap
 
     def _create_from_csv(self,args):
         csvfile = args.FROM_FILE
