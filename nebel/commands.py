@@ -159,7 +159,7 @@ class Tasks:
 
     def _create_from_legacy(self, args):
         frompattern = os.path.normpath(args.FROM_FILE)
-        fromfiles = glob.glob(frompattern)
+        fromfiles = glob.glob(frompattern.replace('{}', '*'))
         for fromfile in fromfiles:
             metadata = {}
             categoryname = 'default'
@@ -1229,9 +1229,9 @@ reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
 create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('--legacybasedir', help='Base directory for legacy file content. Subdirectories of this directory are used as default categories.')
-create_parser.add_argument('--category-prefix', help='When generating from a legacy file, add this prefix to default categories.')
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or an annotated AsciiDoc file (ending with .adoc, including optional wildcard {{}})'.format(context.ASSEMBLIES_DIR))
+create_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
+create_parser.add_argument('--category-prefix', help='When generating from an annotated file, add this prefix to default categories.')
 create_parser.set_defaults(func=tasks.create_from)
 
 # Create the sub-parser for the 'book' command
