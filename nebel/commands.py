@@ -271,7 +271,7 @@ class Tasks:
                         # It's a simple subsection, not a module or assembly
                         # Reformat heading as a simple heading (starts with .)
                         lastline = tentativecontentlines.pop()
-                        lastline = '.' + lastline.replace('=', '').lstrip()
+                        lastline = '.' + lastline.replace('=', '').lstrip() + '\n'
                         # Put back tentative lines
                         for tentativeline in tentativecontentlines:
                             parsedcontentlines.append(tentativeline)
@@ -360,16 +360,47 @@ class Tasks:
                         includedfilelist.append(path_to_included_file)
         return includedfilelist
 
-    def _resolve_includes(self, file, baselevel=0):
+    def _resolve_includes(self, file, baselevel=0, selectedtags=None):
         # Resolve all of the nested includes in 'file' to plain text and return a plain text array of all the lines in the file
         if not os.path.exists(file):
             print 'ERROR: Include file not found: ' + file
             sys.exit()
+        if (selectedtags is not None) and (len(selectedtags) > 0):
+            istaggingactive = True
+            showcontent = False
+            currtagname = ''
+        else:
+            istaggingactive = False
+            showcontent = True
+            currtagname = ''
         linesinfile = []
         regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+        regexp_tag_begin = re.compile(r'tag::([^\[]+)\[\]')
+        regexp_tag_end   = re.compile(r'end::([^\[]+)\[\]')
         with open(file, 'r') as f:
             for line in f:
+                if istaggingactive:
+                    result = regexp_tag_begin.search(line)
+                    if result is not None:
+                        tagname = result.group(1)
+                        # Checks 'currtagname' in order to ignore nested tags
+                        if (not currtagname) and (tagname in selectedtags):
+                            showcontent = True
+                            currtagname = tagname
+                        # Do not include tagged line in output
+                        continue
+                    result = regexp_tag_end.search(line)
+                    if result is not None:
+                        tagname = result.group(1)
+                        if tagname == currtagname:
+                            showcontent = False
+                            currtagname = ''
+                        # Do not include tagged line in output
+                        continue
+                if not showcontent:
+                    # Content is currently tagged off - skip this line
+                    continue
                 result = regexp_title.search(line)
                 if result is not None:
                     childequalssigncount = len(result.group(1))
@@ -390,10 +421,12 @@ class Tasks:
                             childbaselevel = int(leveloffset)
                     directory = os.path.dirname(file)
                     path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
-                    if ('tags' in optmap) or ('tag' in optmap):
-                        print 'WARN: tag and tags options not supported in include directive - skipping included file: ' + path_to_included_file
-                        continue
-                    linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel))
+                    taglist = []
+                    if ('tag' in optmap):
+                        taglist.append(optmap['tag'].strip())
+                    if ('tags' in optmap):
+                        taglist.extend(optmap['tags'].split(';'))
+                    linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel, selectedtags=taglist))
                     continue
                 linesinfile.append(line)
         return linesinfile
