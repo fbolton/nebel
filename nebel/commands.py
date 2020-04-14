@@ -1044,15 +1044,14 @@ class Tasks:
     def mv(self, args):
         frompattern = os.path.normpath(args.FROM_FILE)
         topattern = os.path.normpath(args.TO_FILE)
-        # Generate a database of parent assemblies
-        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
-        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
-        bookfiles = glob.glob('*/master.adoc')
-        parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
-        # print parentassemblies[fromfile]
         # Move each file
         if frompattern.find('{}') == -1:
             # No glob patterns => move a single file
+            # Generate a database of parent assemblies
+            categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+            assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
+            bookfiles = glob.glob('*/master.adoc')
+            parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
             self._mv_single_file(parentassemblies, fromfile=frompattern, tofile=topattern)
         elif frompattern.count('{}') != 1:
             print 'ERROR: More than one glob pattern {} is not allowed in FROM_FILE'
@@ -1069,6 +1068,11 @@ class Tasks:
                 fromfilling = fromfile[fromprefixlen : -fromsuffixlen]
                 toprefix, tosuffix = topattern.split('{}')
                 tofile = toprefix + fromfilling + tosuffix
+                # Generate a database of parent assemblies
+                categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+                assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
+                bookfiles = glob.glob('*/master.adoc')
+                parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
                 self._mv_single_file(parentassemblies, fromfile, tofile)
 
 
