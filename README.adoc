@@ -54,18 +54,18 @@ mkdir assemblies
 Files under the `modules` directory have the following general form:
 
 ----
-modules/<CATEGORY>/<TYPE>_<MODULE_ID>.adoc
+modules/<CATEGORY>/<TYPE>-<MODULE_ID>.adoc
 ----
 
 Where `<CATEGORY>` provides a general way of grouping related modules in the context of modular documentation (replacing the concept of a book or guide).
 It is also possible to use compound categories -- such as `camel/enterprise-integration-patterns`, for example -- which implicitly introduces more subdirectories for the sub-categories.
 The `<TYPE>` prefix indicates what kind of module is represented by the file and can have one of the following values:
 
-* `p` -- procedure module
+* `proc` -- procedure module
 
-* `c` -- concept module
+* `con` -- concept module
 
-* `r` -- reference module
+* `ref` -- reference module
 
 The `<MODULE_ID>` is a unique ID for the module (with the format of words separated by hyphens) and it should be identical to the anchor ID that is attached to the module's title.
 That is, the module is assumed to have a title that is defined something like:
@@ -80,7 +80,7 @@ That is, the module is assumed to have a title that is defined something like:
 Files under the `assemblies` directory have the following general form:
 
 ----
-assemblies/<CATEGORY>/as_<MODULE_ID>.adoc
+assemblies/<CATEGORY>/assembly-<MODULE_ID>.adoc
 ----
 
 Where `<CATEGORY>` is used in the same way as the categories for modules.
@@ -113,25 +113,25 @@ nebel create-from sample.csv
 
 === Creating modules from an assembly file
 
-Nebel can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with boilerplate content).
+Nebel can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with template content).
 
 To create new modules from an assembly file, proceed as follows:
 
 . Edit an existing assembly file to add some `include::` directives for _some modules that do not exist yet_.
-For example, say you have an assembly file, `assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc`, you could add the following include directives:
+For example, say you have an assembly file, `assemblies/installing-on-apache-karaf/assembly-install-karaf-for-admin.adoc`, you could add the following include directives:
 +
 ----
-\include::../../modules/installing-on-apache-karaf/p_download-latest-karaf-patch.adoc[leveloffset=+1]
+\include::../../modules/installing-on-apache-karaf/proc-download-latest-karaf-patch.adoc[leveloffset=+1]
 
-\include::../../modules/installing-on-apache-karaf/p_unzip-karaf-package.adoc[leveloffset=+1]
+\include::../../modules/installing-on-apache-karaf/proc-unzip-karaf-package.adoc[leveloffset=+1]
 
-\include::../../modules/installing-on-apache-karaf/p_karaf-create-new-user.adoc[leveloffset=+1]
+\include::../../modules/installing-on-apache-karaf/proc-karaf-create-new-user.adoc[leveloffset=+1]
 ----
 
 . From the command line, enter the following `nebel` command (from the same directory where `nebel.cfg` is stored):
 +
 ----
-nebel create-from assemblies/installing-on-apache-karaf/as_install-karaf-for-admin.adoc
+nebel create-from assemblies/installing-on-apache-karaf/assembly-install-karaf-for-admin.adoc
 ----
 +
 After running this command, you should find three new procedure modules under the `modules/installing-on-apache-karaf/` directory.
@@ -192,4 +192,4 @@ images/maven
 ----
 
 At a later time, if you add a new category in the main `assemblies` directory or in the main `modules` directory, 
-you can run the command again and specify only the new catagory or catagories. 
+you can run the command again and specify only the new category or categories. 
