@@ -31,6 +31,7 @@ class ModuleFactory:
                 print 'ERROR: Cannot parse ModuleID: ' + moduleid
                 sys.exit()
             coremoduleid = regexp.sub('', tmpstr)
+        coremoduleid = coremoduleid.replace('_', '-')
         if type == 'assembly':
             return self.context.ASSEMBLY_PREFIX + coremoduleid + '.adoc'
         elif type == 'procedure':
@@ -65,14 +66,14 @@ class ModuleFactory:
     def module_or_assembly_path(self, metadata):
         return os.path.join(self.module_dirpath(metadata), self.name_of_file(metadata))
 
-    def create(self, metadata, filecontents = None):
+    def create(self, metadata, filecontents = None, clobber = False):
         type = metadata['Type'].lower()
         filename = self.name_of_file(metadata)
         dirpath = self.module_dirpath(metadata)
         if not os.path.exists(dirpath):
             os.makedirs(dirpath)
         filepath = os.path.join(dirpath, filename)
-        if os.path.exists(filepath):
+        if os.path.exists(filepath) and not clobber:
             print 'INFO: File already exists, skipping: ' + filename
             return filepath
         with open(filepath, 'w') as filehandle:

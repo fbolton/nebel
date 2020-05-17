@@ -88,9 +88,6 @@ class Tasks:
 
     def create_from(self,args):
         fromfile = args.FROM_FILE
-        if not os.path.exists(fromfile):
-            print 'ERROR: Cannot find file: ' + fromfile
-            sys.exit()
         if fromfile.endswith('.csv'):
             self._create_from_csv(args)
             return
@@ -98,9 +95,6 @@ class Tasks:
                 and fromfile.endswith('.adoc')\
                 and os.path.basename(fromfile).startswith(self.context.ASSEMBLY_PREFIX):
             self._create_from_assembly(args)
-            return
-        elif fromfile.endswith('.adoc'):
-            self._create_from_legacy(args)
             return
         else:
             print 'ERROR: Unknown file type [' + fromfile + ']: must end either in .csv or .adoc'
@@ -160,17 +154,27 @@ class Tasks:
                         self.context.moduleFactory.create(metadata)
 
 
-    def _create_from_legacy(self, args):
-        fromfile = args.FROM_FILE
-        metadata = {}
-        metadata['Category'] = 'default'
-        equalssigncount = 0
-        with open(fromfile, 'r') as f:
-            lines = f.readlines()
-        indexofnextline = 0
-        self._parse_from_legacy(metadata, fromfile, lines, indexofnextline, equalssigncount)
+    def adoc_split(self, args):
+        frompattern = os.path.normpath(args.FROM_FILE)
+        fromfiles = glob.glob(frompattern.replace('{}', '*'))
+        for fromfile in fromfiles:
+            metadata = {}
+            categoryname = 'default'
+            if args.legacybasedir:
+                if not os.path.exists(args.legacybasedir):
+                    print 'ERROR: No such base directory: ' + args.legacybasedir
+                    sys.exit()
+                relativedir = os.path.dirname(os.path.relpath(fromfile, args.legacybasedir))
+                categoryname = relativedir.replace(os.path.sep, '-')
+            if args.category_prefix:
+                categoryname = args.category_prefix + '-' + categoryname
+            metadata['Category'] = categoryname
+            equalssigncount = 0
+            lines = self._resolve_includes(fromfile)
+            indexofnextline = 0
+            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount)
 
-    def _parse_from_legacy(
+    def _parse_from_annotated(
             self,
             metadata,
             fromfilepath,
@@ -209,7 +213,7 @@ class Tasks:
                     # Don't save current content
                     return ('', len(lines))
                 elif 'Type' in metadata:
-                    generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                    generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines, clobber=True)
                     return (generated_file, len(lines))
                 else:
                     return ('', len(lines))
@@ -264,7 +268,7 @@ class Tasks:
                         # It's a simple subsection, not a module or assembly
                         # Reformat heading as a simple heading (starts with .)
                         lastline = tentativecontentlines.pop()
-                        lastline = '.' + lastline.replace('=', '').lstrip()
+                        lastline = '.' + lastline.replace('=', '').lstrip() + '\n'
                         # Put back tentative lines
                         for tentativeline in tentativecontentlines:
                             parsedcontentlines.append(tentativeline)
@@ -278,7 +282,7 @@ class Tasks:
                         childmetadata['ConversionStatus'] = 'raw'
                         childmetadata['ConversionDate'] = str(datetime.datetime.now())
                         childmetadata['ConvertedFromFile'] = fromfilepath
-                        (generated_file, indexofnextline) = self._parse_from_legacy(
+                        (generated_file, indexofnextline) = self._parse_from_annotated(
                             childmetadata,
                             fromfilepath,
                             lines,
@@ -294,7 +298,7 @@ class Tasks:
                             # Don't save current content and back up to the start of the tentative block
                             return ('', index_of_tentative_block)
                         # Save the current content
-                        generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines)
+                        generated_file = self.context.moduleFactory.create(metadata, parsedcontentlines, clobber=True)
                         return (generated_file, index_of_tentative_block)
                     # Switch state
                     parsing_state = REGULAR_LINES
@@ -306,6 +310,9 @@ class Tasks:
                 if (result is not None) and not expecting_title_line:
                     metadata_name = result.group(1)
                     metadata_value = result.group(2)
+                    # Make 'TopicType' an alias for 'Type' (preferred upstream)
+                    if metadata_name == 'TopicType':
+                        metadata_name = 'Type'
                     if metadata_name in self.context.allMetadataFields:
                         childmetadata[metadata_name] = metadata_value
                     #print 'Metadata: ' + metadata_name + ' = ' + metadata_value
@@ -353,6 +360,86 @@ class Tasks:
                         includedfilelist.append(path_to_included_file)
         return includedfilelist
 
+    def _resolve_includes(self, file, baselevel=0, selectedtags=None):
+        # Resolve all of the nested includes in 'file' to plain text and return a plain text array of all the lines in the file
+        if not os.path.exists(file):
+            print 'ERROR: Include file not found: ' + file
+            sys.exit()
+        if (selectedtags is not None) and (len(selectedtags) > 0):
+            istaggingactive = True
+            showcontent = False
+            currtagname = ''
+        else:
+            istaggingactive = False
+            showcontent = True
+            currtagname = ''
+        linesinfile = []
+        regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+        regexp_tag_begin = re.compile(r'tag::([^\[]+)\[\]')
+        regexp_tag_end   = re.compile(r'end::([^\[]+)\[\]')
+        with open(file, 'r') as f:
+            for line in f:
+                if istaggingactive:
+                    result = regexp_tag_begin.search(line)
+                    if result is not None:
+                        tagname = result.group(1)
+                        # Checks 'currtagname' in order to ignore nested tags
+                        if (not currtagname) and (tagname in selectedtags):
+                            showcontent = True
+                            currtagname = tagname
+                        # Do not include tagged line in output
+                        continue
+                    result = regexp_tag_end.search(line)
+                    if result is not None:
+                        tagname = result.group(1)
+                        if tagname == currtagname:
+                            showcontent = False
+                            currtagname = ''
+                        # Do not include tagged line in output
+                        continue
+                if not showcontent:
+                    # Content is currently tagged off - skip this line
+                    continue
+                result = regexp_title.search(line)
+                if result is not None:
+                    childequalssigncount = len(result.group(1))
+                    title = result.group(2)
+                    linesinfile.append('=' * (childequalssigncount + baselevel) + ' ' + title)
+                    continue
+                result = regexp_include.search(line)
+                if result is not None:
+                    includedfile = result.group(1)
+                    options      = result.group(2)
+                    optmap = self._parse_include_opts(options)
+                    childbaselevel = baselevel
+                    if 'leveloffset' in optmap:
+                        leveloffset = optmap['leveloffset'].strip()
+                        if leveloffset.startswith('+'):
+                            childbaselevel = baselevel + int(leveloffset)
+                        else:
+                            childbaselevel = int(leveloffset)
+                    directory = os.path.dirname(file)
+                    path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
+                    taglist = []
+                    if ('tag' in optmap):
+                        taglist.append(optmap['tag'].strip())
+                    if ('tags' in optmap):
+                        taglist.extend(optmap['tags'].split(';'))
+                    linesinfile.extend(self._resolve_includes(path_to_included_file, baselevel=childbaselevel, selectedtags=taglist))
+                    continue
+                linesinfile.append(line)
+        return linesinfile
+
+    def _parse_include_opts(self, optstring):
+        # Returns a map of property, value pairs
+        optlist = optstring.split(',')
+        optmap = {}
+        for opt in optlist:
+            if opt.count('=') > 0:
+                (prop, value) = opt.split('=', 1)
+                optmap[prop.strip().lower()] = value.strip()
+        return optmap
 
     def _create_from_csv(self,args):
         csvfile = args.FROM_FILE
@@ -1178,9 +1265,16 @@ add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
-create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or a legacy AsciiDoc file (ending with .adoc)'.format(context.ASSEMBLIES_DIR))
+create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file, or an assembly file')
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), or an assembly file (starting with {}/ and ending with .adoc)'.format(context.ASSEMBLIES_DIR))
 create_parser.set_defaults(func=tasks.create_from)
+
+# Create the sub-parser for the 'split' command
+split_parser = subparsers.add_parser('split', help='Split an annotated AsciiDoc file into multiple assemblies and modules')
+split_parser.add_argument('FROM_FILE', help='Annotated AsciiDoc file (ending with .adoc, including optional wildcard braces, {})')
+split_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
+split_parser.add_argument('--category-prefix', help='When splitting an annotated file, add this prefix to default categories.')
+split_parser.set_defaults(func=tasks.adoc_split)
 
 # Create the sub-parser for the 'book' command
 book_parser = subparsers.add_parser('book', help='Create and manage book directories')
