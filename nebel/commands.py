@@ -96,9 +96,6 @@ class Tasks:
                 and os.path.basename(fromfile).startswith(self.context.ASSEMBLY_PREFIX):
             self._create_from_assembly(args)
             return
-        elif fromfile.endswith('.adoc'):
-            self._create_from_legacy(args)
-            return
         else:
             print 'ERROR: Unknown file type [' + fromfile + ']: must end either in .csv or .adoc'
             sys.exit()
@@ -157,7 +154,7 @@ class Tasks:
                         self.context.moduleFactory.create(metadata)
 
 
-    def _create_from_legacy(self, args):
+    def adoc_split(self, args):
         frompattern = os.path.normpath(args.FROM_FILE)
         fromfiles = glob.glob(frompattern.replace('{}', '*'))
         for fromfile in fromfiles:
@@ -175,9 +172,9 @@ class Tasks:
             equalssigncount = 0
             lines = self._resolve_includes(fromfile)
             indexofnextline = 0
-            self._parse_from_legacy(metadata, fromfile, lines, indexofnextline, equalssigncount)
+            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount)
 
-    def _parse_from_legacy(
+    def _parse_from_annotated(
             self,
             metadata,
             fromfilepath,
@@ -285,7 +282,7 @@ class Tasks:
                         childmetadata['ConversionStatus'] = 'raw'
                         childmetadata['ConversionDate'] = str(datetime.datetime.now())
                         childmetadata['ConvertedFromFile'] = fromfilepath
-                        (generated_file, indexofnextline) = self._parse_from_legacy(
+                        (generated_file, indexofnextline) = self._parse_from_annotated(
                             childmetadata,
                             fromfilepath,
                             lines,
@@ -1264,11 +1261,16 @@ add_module_arguments(reference_parser)
 reference_parser.set_defaults(func=tasks.create_reference)
 
 # Create the sub-parser for the 'create-from' command
-create_parser = subparsers.add_parser('create-from', help='Create multiple {}/modules from a CSV file, an assembly file, or a legacy AsciiDoc file'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), an assembly file (starting with {}/ and ending with .adoc), or an annotated AsciiDoc file (ending with .adoc, including optional wildcard {{}})'.format(context.ASSEMBLIES_DIR))
-create_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
-create_parser.add_argument('--category-prefix', help='When generating from an annotated file, add this prefix to default categories.')
+create_parser = subparsers.add_parser('create-from', help='Create multiple assemblies/modules from a CSV file, or an assembly file')
+create_parser.add_argument('FROM_FILE', help='Can be either a comma-separated values (CSV) file (ending with .csv), or an assembly file (starting with {}/ and ending with .adoc)'.format(context.ASSEMBLIES_DIR))
 create_parser.set_defaults(func=tasks.create_from)
+
+# Create the sub-parser for the 'split' command
+split_parser = subparsers.add_parser('split', help='Split an annotated AsciiDoc file into multiple assemblies and modules')
+split_parser.add_argument('FROM_FILE', help='Annotated AsciiDoc file (ending with .adoc, including optional wildcard braces, {})')
+split_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
+split_parser.add_argument('--category-prefix', help='When splitting an annotated file, add this prefix to default categories.')
+split_parser.set_defaults(func=tasks.adoc_split)
 
 # Create the sub-parser for the 'book' command
 book_parser = subparsers.add_parser('book', help='Create and manage book directories')
