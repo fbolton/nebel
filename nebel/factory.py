@@ -32,20 +32,17 @@ class ModuleFactory:
                 sys.exit()
             coremoduleid = regexp.sub('', tmpstr)
         coremoduleid = coremoduleid.replace('_', '-')
-        if type == 'assembly':
+        if type == 'assembly' and not coremoduleid.startswith(self.context.ASSEMBLY_PREFIX):
             return self.context.ASSEMBLY_PREFIX + coremoduleid + '.adoc'
-        elif type == 'procedure':
+        elif type == 'procedure' and not coremoduleid.startswith(self.context.PROCEDURE_PREFIX):
             return self.context.PROCEDURE_PREFIX + coremoduleid + '.adoc'
-        elif type == 'concept':
+        elif type == 'concept' and not coremoduleid.startswith(self.context.CONCEPT_PREFIX):
             return self.context.CONCEPT_PREFIX + coremoduleid + '.adoc'
-        elif type == 'reference':
+        elif type == 'reference' and not coremoduleid.startswith(self.context.REFERENCE_PREFIX):
             return self.context.REFERENCE_PREFIX + coremoduleid + '.adoc'
-        elif type == 'module':
+        else:
             # For a generic module of unknown type, do not attach a prefix
             return coremoduleid + '.adoc'
-        else:
-            print 'ERROR: Unknown module Type: ' + str(type)
-            sys.exit()
 
     def normalize_filename(self, filename):
         normalized = filename.replace('_', '-')
