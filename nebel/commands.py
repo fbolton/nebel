@@ -313,6 +313,9 @@ class Tasks:
                 if (result is not None) and not expecting_title_line:
                     metadata_name = result.group(1)
                     metadata_value = result.group(2)
+                    # Make 'TopicType' an alias for 'Type' (preferred upstream)
+                    if metadata_name == 'TopicType':
+                        metadata_name = 'Type'
                     if metadata_name in self.context.allMetadataFields:
                         childmetadata[metadata_name] = metadata_value
                     #print 'Metadata: ' + metadata_name + ' = ' + metadata_value
