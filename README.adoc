@@ -2,7 +2,19 @@
 
 `nebel` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebel` to create a new instance of an assembly, procedure, concept, or reference.
 
-== Installing nebel
+* xref:installing-nebel[]
+* xref:setting-up-a-content-repository-to-use-neble[]
+* xref:naming-conventions-for-files-and-directories[]
+* xref:creating-content-with-nebel[]
+* xref:adding-symbolic-links-wth-nebel[]
+* xref:splitting-contnet[]
+* xref:renaming-or-moving-files[]
+* xref:backwards-incompatible-change[]
+* xref:nebel-versioning[]
+* xref:nebel-python-interpreter[]
+
+[id="installing-nebel"]
+== Installing `nebel`
 
 The `nebel` utility is easy to install, as it does not require any special or non-standard Python libraries.
 
@@ -26,9 +38,10 @@ export PATH=/path/to/your/nebel/bin:$PATH
 +
 Ideally, you should add this export command to your `~/.bashrc` file, to make `nebel` permanently available.
 
-== Setting up a content repository to use nebel
+[id="setting-up-a-content-repository-to-use-neble"]
+== Setting up a content repository to use `nebel`
 
-`nebel` is designed to manage modular content in a documentation repository (presumed to be a Git repository, although that is not a requirement). `nebel` imposes certain requirements on the directory structure of the content repository, as follows:
+The `nebel` utility is designed to manage modular content in a documentation repository (presumed to be a Git repository, although that is not a requirement). `nebel` imposes certain requirements on the directory structure of the content repository, as follows:
 
 . There must be a `nebel.cfg` file in the top level of working directory tree.
 This file is required by `nebel` and `nebel` commands _must_ be issued in the same directory as `nebel.cfg`, otherwise `nebel` returns an error.
@@ -47,8 +60,13 @@ Create an `assemblies` directory to store the assembly files:
 mkdir assemblies
 ----
 
+[id="naming-conventions-for-files-and-directories"]
 == Naming conventions for files and directories
 
+* xref:naming-conventions-for-modules[]
+* xref:naming-conventions-for-assemblies[]
+
+[id="naming-conventions-for-modules"]
 === Naming convention for modules
 
 Files under the `modules` directory have the following general form:
@@ -75,6 +93,7 @@ That is, the module is assumed to have a title that is defined something like:
 = This is a sample title
 ----
 
+[id="naming-conventions-for-assemblies"]
 === Naming convention for assemblies
 
 Files under the `assemblies` directory have the following general form:
@@ -86,11 +105,18 @@ assemblies/<CATEGORY>/assembly-<MODULE_ID>.adoc
 Where `<CATEGORY>` is used in the same way as the categories for modules.
 In particular, closely related assemblies and modules should share the same category.
 
-== Creating content with Nebel
+[id="creating-content-with-nebel"]
+== Creating content with `nebel`
 
+`nebel` can create content in several ways: 
+
+* xref:creating-modules-and-assemblies-from-a-csv-file[]
+* xref:creating-modules-from-an-assembly-file[]
+
+[id="creating-modules-and-assemblies-from-a-csv-file"]
 === Creating modules and assemblies from a CSV file
 
-Nebel enables you to create multiple assemblies and modules quickly from a comma-separated values (CSV) file (which can be obtained by exporting content from a spreadsheet).
+The `nebel` utility enables you to create multiple assemblies and modules from a comma-separated values (CSV) file, which you can obtain by exporting content from a spreadsheet.
 This capability is designed to support a workflow where you design the high-level structure of a guide in a spreadsheet (for example, in Google sheets) and then generate the corresponding assemblies and modules from the spreadsheet data.
 
 A typical CSV file might have a structure like the following:
@@ -101,7 +127,7 @@ installing-on-apache-karaf,"As an Evaluator, I want to install Fuse on Karaf, so
 installing-on-apache-karaf,"As a Developer, I want to install Fuse on Karaf, so that I can develop Karaf applications on my local machine.",assembly,install-karaf-for-developer,,,,Developer is probably not that worried about which patch they install. Probably wants to configure Maven properly.,
 ----
 
-Note that only the `Category`, `Type`, and `ModuleID` columns are required.
+Only the `Category`, `Type`, `Level` and `ModuleID` columns are required.
 However, if you are using the spreadsheet to define the high-level structure of a guide, you will almost certainly want to include the `UserStory` column as well.
 Some of the additional columns are preserved as metadata (written into comments in the generated module and assembly files), whilst other additional columns are ignored.
 
@@ -111,9 +137,14 @@ Given a CSV file, `sample.csv`, you can generate the corresponding modules and a
 nebel create-from sample.csv
 ----
 
+When using a Google sheet to plan assemblies and modules, you should populate a `Levels` column. This enables you to specify a nesting level for each module/assembly by using a positive integer, 1...n. This makes it possible to map out the structure of your book exactly, using arbitrary levels of nesting.
+
+When generating content from a sheet (actually, from an exported CSV file), `mebel` automatically generates an accompanying `generated_master.adoc` file. This file contains the `include` directives for the top-level items specified in the sheet. This helps you to quickly create a skeleton outline of the new book.
+
+[id="creating-modules-from-an-assembly-file"]
 === Creating modules from an assembly file
 
-Nebel can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with template content).
+The `nebel` utility can also create new modules by scanning an assembly file for AsciiDoc `include::` directives and -- based on the information available in the include directives -- create corresponding new modules (with template content).
 
 To create new modules from an assembly file, proceed as follows:
 
@@ -136,11 +167,13 @@ nebel create-from assemblies/installing-on-apache-karaf/assembly-install-karaf-f
 +
 After running this command, you should find three new procedure modules under the `modules/installing-on-apache-karaf/` directory.
 
-== Adding symbolic links with Nebel
+[id-"adding-symbolic-links-wth-nebel"]
+== Adding symbolic links with `nebel`
 
 All content is in the `assemblies` directory and the `modules` directory. For publishing a book, the `master.adoc` file for the book is in another directory, which is a peer to the `assemblies` 
 directory and `modules` directory. To generate the book, you need symbolic links in the book directory to the category directories that contain the assemblies and modules. 
 
+[id="setting-up-a-book-directory-for-symbolic-links"]
 === Setting up a book directory for symbolic links
 
 In a book directory, before you add symbolic links to category directories, add an `assemblies` directory, an `images` directory, and a `modules` directory. 
@@ -154,7 +187,8 @@ master-docinfo.xml
 master.adoc 
 ----
 
-=== Running Nebel to add symbolic links
+[id="running-nebel-to-add-symbolic-links"]
+=== Running `nebel` to add symbolic links
 
 To run nebel to create symbolic links, the command line has the following form:
 
@@ -193,3 +227,80 @@ images/maven
 
 At a later time, if you add a new category in the main `assemblies` directory or in the main `modules` directory, 
 you can run the command again and specify only the new category or categories. 
+
+[id="splitting-content"]
+== Splitting content in one file into assemblies and modules
+
+The `nebel split` command uses annotations on source file headings to split the source file content into assemblies and modules. For example, to identify a heading for a concept module, add the `Type: concept` annotation:
+
+----
+// Type: concept
+[id="overview"]
+== Overview
+----
+
+The `nebel` utility recognizes `TopicType` as an alias for `Type`, so you can specify `TopicType` if you prefer. If you need the modular title to be different from the original title, you can customize it in the metadata by adding the `Title` property, for example: 
+
+----
+// TopicType: concept
+// Title: Overview of how the Debezium PostgreSQL connector works
+[id="overview-of-how-the-debezium-postgresql-connector-works"]
+== Overview
+----
+
+After you run `nebel` to split the content, the generated module heading would look something like this:
+
+----
+// ... (metadata not shown)
+[id="overview-of-how-the-debezium-postgresql-connector-works"]
+= Overview of how the Debezium PostgreSQL connector works
+----
+
+[id="renaming-or-moving-files"]
+== Renaming or moving files
+
+The `nebel mv` command lets you move or rename a file (or files) without breaking any include directives. In particular, this subcommand was originally implemented to assist with renaming modular file prefixes. For example, consider a collection of procedure modules whose file names start with `p_`. To change that prefix to `proc-` you can rename the files by running a command like this: 
+
+----
+nebel mv modules/getting-started/p_{}.adoc modules/getting-started/proc-{}.adoc
+----
+
+The `nebel` utility updates `include` directives as well as links that contain the file names that are being changed. 
+
+[id='backwards-incompatiple-change']
+== Backwards-incompatible change to modular file prefixes
+
+Prior to `nebel` version 2, `nebel` assumed that the underscore, `_`, was the separator for modular file prefixes. For example, file names had prefixes such `proc_`, `con_`, and `ref_`. It was possible to customize the prefixes, by setting some properties in the `nebel.cfg` file, but it was not possible to change the separator to be anything other than an underscore.
+
+Starting with `nebel` version 2, however, it is possible to customize file prefixes, including the separator character, by editing settings in the `nebel.cfg` file. For example:
+
+----
+[Nebel]
+dir.assemblies = assemblies
+dir.modules = modules
+prefix.assembly = assembly-
+prefix.procedure = proc-
+prefix.concept = con-
+prefix.reference = ref-
+----
+
+[id="nebel-versioning"]
+== `nebel` versioning
+
+`nebel` now supports a version flag, which you can use to check the particular version you are using, for example:
+
+----
+nebel -v
+Nebel 2.1.x (dev release)
+----
+
+Here is a recent version history:
+
+* 1.0.0 -- First numbered version (from April 4, 2020), uses the old convention for modular file prefixes (underscore separator is hardcoded).
+* 2.0.x -- Backwards-incompatible update, uses the new convention for modular file prefixes (separator character is part of the customizable prefix, thus enabling you to use a hyphen separator).
+* 2.1.x -- Supports the new `nebel split` subcommand.
+ 
+[id="nebel-python-interpreter"]
+== `nebel`'s Python interpreter
+
+The `nebel` utility is coded for the Python 2 interpreter and does not work with Python 3. On May 15, I modified the `nebel` binary, so that it calls the Python 2 interpreter explicitly (instead of calling the ambiguous Python executable). This ensures that `nebel` also runs correctly on recent Fedora and RHEL releases. In the long run, `nebel` will need to be updated for Python 3.
