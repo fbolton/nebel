@@ -9,7 +9,7 @@
 * xref:adding-symbolic-links-wth-nebel[]
 * xref:splitting-content[]
 * xref:renaming-or-moving-files[]
-* xref:backwards-incompatiple-change[]
+* xref:backwards-incompatible-change[]
 * xref:nebel-versioning[]
 * xref:nebel-python-interpreter[]
 
@@ -267,7 +267,7 @@ nebel mv modules/getting-started/p_{}.adoc modules/getting-started/proc-{}.adoc
 
 The `nebel` utility updates `include` directives as well as links that contain the file names that are being changed.
 
-[id="backwards-incompatiple-change"]
+[id="backwards-incompatible-change"]
 == Backwards-incompatible change to modular file prefixes
 
 Prior to `nebel` version 2, `nebel` assumed that the underscore, `_`, was the separator for modular file prefixes. For example, file names had prefixes such `proc_`, `con_`, and `ref_`. It was possible to customize the prefixes, by setting some properties in the `nebel.cfg` file, but it was not possible to change the separator to be anything other than an underscore.
