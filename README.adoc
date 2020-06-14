@@ -1,13 +1,13 @@
 = Nebel Utility for Modular Documentation
 
-`nebel` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebel` to create a new instance of an assembly, procedure, concept, or reference.
+`nebel` is a Python command-line tool that implements certain routine tasks associated with creating and managing _modular documentation_. For example, you can use `nebel` to create a new instance of an assembly, procedure, concept, or reference file.
 
 * xref:installing-nebel[]
 * xref:setting-up-a-content-repository-to-use-neble[]
 * xref:naming-conventions-for-files-and-directories[]
 * xref:creating-content-with-nebel[]
 * xref:adding-symbolic-links-wth-nebel[]
-* xref:splitting-contnet[]
+* xref:splitting-content[]
 * xref:renaming-or-moving-files[]
 * xref:backwards-incompatible-change[]
 * xref:nebel-versioning[]
@@ -108,7 +108,7 @@ In particular, closely related assemblies and modules should share the same cate
 [id="creating-content-with-nebel"]
 == Creating content with `nebel`
 
-`nebel` can create content in several ways: 
+`nebel` can create content in several ways:
 
 * xref:creating-modules-and-assemblies-from-a-csv-file[]
 * xref:creating-modules-from-an-assembly-file[]
@@ -167,24 +167,24 @@ nebel create-from assemblies/installing-on-apache-karaf/assembly-install-karaf-f
 +
 After running this command, you should find three new procedure modules under the `modules/installing-on-apache-karaf/` directory.
 
-[id-"adding-symbolic-links-wth-nebel"]
+[id="adding-symbolic-links-wth-nebel"]
 == Adding symbolic links with `nebel`
 
-All content is in the `assemblies` directory and the `modules` directory. For publishing a book, the `master.adoc` file for the book is in another directory, which is a peer to the `assemblies` 
-directory and `modules` directory. To generate the book, you need symbolic links in the book directory to the category directories that contain the assemblies and modules. 
+All content is in the `assemblies` directory and the `modules` directory. For publishing a book, the `master.adoc` file for the book is in another directory, which is a peer to the `assemblies`
+directory and `modules` directory. To generate the book, you need symbolic links in the book directory to the category directories that contain the assemblies and modules.
 
 [id="setting-up-a-book-directory-for-symbolic-links"]
 === Setting up a book directory for symbolic links
 
-In a book directory, before you add symbolic links to category directories, add an `assemblies` directory, an `images` directory, and a `modules` directory. 
+In a book directory, before you add symbolic links to category directories, add an `assemblies` directory, an `images` directory, and a `modules` directory.
 For example, suppose the name of the book directory is `installing-on-jboss-eap`. You want the `installing-on-jboss-eap` directory to contain:
 
 ----
 assemblies
 images
 modules
-master-docinfo.xml 
-master.adoc 
+master-docinfo.xml
+master.adoc
 ----
 
 [id="running-nebel-to-add-symbolic-links"]
@@ -196,8 +196,8 @@ To run nebel to create symbolic links, the command line has the following form:
 nebel book book-directory-name -c "category1,category2,...categoryn"
 ----
 
-Replace _book-directory-name_ with the name of the directory that contains the book for which you are adding symbolic links to category directories. 
-In the quotation marks, insert the name of each category directory for which you want symbolic links. 
+Replace _book-directory-name_ with the name of the directory that contains the book for which you are adding symbolic links to category directories.
+In the quotation marks, insert the name of each category directory for which you want symbolic links.
 For example, the following command adds symbolic links to the directory that contains the book,  Installing on JBoss EAP:
 
 ----
@@ -225,8 +225,8 @@ images/installing-on-jboss-eap
 images/maven
 ----
 
-At a later time, if you add a new category in the main `assemblies` directory or in the main `modules` directory, 
-you can run the command again and specify only the new category or categories. 
+At a later time, if you add a new category in the main `assemblies` directory or in the main `modules` directory,
+you can run the command again and specify only the new category or categories.
 
 [id="splitting-content"]
 == Splitting content in one file into assemblies and modules
@@ -239,7 +239,7 @@ The `nebel split` command uses annotations on source file headings to split the 
 == Overview
 ----
 
-The `nebel` utility recognizes `TopicType` as an alias for `Type`, so you can specify `TopicType` if you prefer. If you need the modular title to be different from the original title, you can customize it in the metadata by adding the `Title` property, for example: 
+The `nebel` utility recognizes `TopicType` as an alias for `Type`, so you can specify `TopicType` if you prefer. If you need the modular title to be different from the original title, you can customize it in the metadata by adding the `Title` property, for example:
 
 ----
 // TopicType: concept
@@ -259,15 +259,15 @@ After you run `nebel` to split the content, the generated module heading would l
 [id="renaming-or-moving-files"]
 == Renaming or moving files
 
-The `nebel mv` command lets you move or rename a file (or files) without breaking any include directives. In particular, this subcommand was originally implemented to assist with renaming modular file prefixes. For example, consider a collection of procedure modules whose file names start with `p_`. To change that prefix to `proc-` you can rename the files by running a command like this: 
+The `nebel mv` command lets you move or rename a file (or files) without breaking any include directives. In particular, this subcommand was originally implemented to assist with renaming modular file prefixes. For example, consider a collection of procedure modules whose file names start with `p_`. To change that prefix to `proc-` you can rename the files by running a command like this:
 
 ----
 nebel mv modules/getting-started/p_{}.adoc modules/getting-started/proc-{}.adoc
 ----
 
-The `nebel` utility updates `include` directives as well as links that contain the file names that are being changed. 
+The `nebel` utility updates `include` directives as well as links that contain the file names that are being changed.
 
-[id='backwards-incompatiple-change']
+[id="backwards-incompatible-change"]
 == Backwards-incompatible change to modular file prefixes
 
 Prior to `nebel` version 2, `nebel` assumed that the underscore, `_`, was the separator for modular file prefixes. For example, file names had prefixes such `proc_`, `con_`, and `ref_`. It was possible to customize the prefixes, by setting some properties in the `nebel.cfg` file, but it was not possible to change the separator to be anything other than an underscore.
@@ -299,8 +299,8 @@ Here is a recent version history:
 * 1.0.0 -- First numbered version (from April 4, 2020), uses the old convention for modular file prefixes (underscore separator is hardcoded).
 * 2.0.x -- Backwards-incompatible update, uses the new convention for modular file prefixes (separator character is part of the customizable prefix, thus enabling you to use a hyphen separator).
 * 2.1.x -- Supports the new `nebel split` subcommand.
- 
+
 [id="nebel-python-interpreter"]
-== `nebel`'s Python interpreter
+== `nebel` Python interpreter
 
 The `nebel` utility is coded for the Python 2 interpreter and does not work with Python 3. On May 15, I modified the `nebel` binary, so that it calls the Python 2 interpreter explicitly (instead of calling the ambiguous Python executable). This ensures that `nebel` also runs correctly on recent Fedora and RHEL releases. In the long run, `nebel` will need to be updated for Python 3.
