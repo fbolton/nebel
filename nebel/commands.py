@@ -157,6 +157,11 @@ class Tasks:
     def adoc_split(self, args):
         frompattern = os.path.normpath(args.FROM_FILE)
         fromfiles = glob.glob(frompattern.replace('{}', '*'))
+        if args.attribute_files:
+            attrfilelist = args.attribute_files.strip().split(',')
+            self.context.parse_attribute_files(attrfilelist)
+        else:
+            attrfilelist = None
         for fromfile in fromfiles:
             metadata = {}
             categoryname = 'default'
@@ -409,7 +414,7 @@ class Tasks:
                     continue
                 result = regexp_include.search(line)
                 if result is not None:
-                    includedfile = result.group(1)
+                    includedfile = self.context.resolve_raw_attribute_value(result.group(1))
                     options      = result.group(2)
                     optmap = self._parse_include_opts(options)
                     childbaselevel = baselevel
@@ -1274,6 +1279,7 @@ split_parser = subparsers.add_parser('split', help='Split an annotated AsciiDoc 
 split_parser.add_argument('FROM_FILE', help='Annotated AsciiDoc file (ending with .adoc, including optional wildcard braces, {})')
 split_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
 split_parser.add_argument('--category-prefix', help='When splitting an annotated file, add this prefix to default categories.')
+split_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
 split_parser.set_defaults(func=tasks.adoc_split)
 
 # Create the sub-parser for the 'book' command

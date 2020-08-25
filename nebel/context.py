@@ -83,6 +83,8 @@ class NebelContext:
 
 
     def resolve_raw_attribute_value(self, value):
+        if len(self.attributeDict) == 0:
+            return value
         regexp = re.compile(r'\{([\w\-]+)\}')
         new_value = regexp.sub(self.replace_matching_attribute, value)
         return new_value
