@@ -162,6 +162,10 @@ class Tasks:
             self.context.parse_attribute_files(attrfilelist)
         else:
             attrfilelist = None
+        if args.conditions:
+            selectedconditions = args.conditions.strip().split(',')
+        else:
+            selectedconditions = None
         for fromfile in fromfiles:
             metadata = {}
             categoryname = 'default'
@@ -177,7 +181,7 @@ class Tasks:
             equalssigncount = 0
             lines = self._resolve_includes(fromfile)
             indexofnextline = 0
-            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount)
+            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount, selectedconditions)
 
     def _parse_from_annotated(
             self,
@@ -185,7 +189,8 @@ class Tasks:
             fromfilepath,
             lines,
             indexofnextline,
-            equalssigncount
+            equalssigncount,
+            selectedconditions = None
     ):
         # Define some enums for state machine
         REGULAR_LINES = 0
@@ -201,11 +206,22 @@ class Tasks:
         parsing_state = REGULAR_LINES
         expecting_title_line = False
         module_complete = False
+        if (selectedconditions is not None) and (len(selectedconditions) > 0):
+            isconditionalizeactive = True
+            showcontent = True
+            currconditionstack = []
+        else:
+            isconditionalizeactive = False
+            showcontent = True
+            currconditionstack = []
 
         # Define regular expressions
         regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.*)')
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_ifdef    = re.compile(r'^ifdef::([^\[]+)\[\]')
+        regexp_ifndef   = re.compile(r'^ifndef::([^\[]+)\[\]')
+        regexp_endif    = re.compile(r'^endif::([^\[]+)\[\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
 
         childmetadata = {}
@@ -222,6 +238,42 @@ class Tasks:
                     return (generated_file, len(lines))
                 else:
                     return ('', len(lines))
+
+            if isconditionalizeactive:
+                line = lines[indexofnextline]
+                result = regexp_ifdef.search(line)
+                if result is not None:
+                    conditionname = result.group(1)
+                    # Nested ifdef condition is only relevant, if content is currently tagged on
+                    if showcontent and (conditionname not in selectedconditions):
+                        showcontent = False
+                        currconditionstack.append(conditionname)
+                    # Do not include tagged line in output
+                    indexofnextline += 1
+                    continue
+                result = regexp_ifndef.search(line)
+                if result is not None:
+                    conditionname = result.group(1)
+                    # Nested ifndef condition is only relevant, if content is currently tagged on
+                    if showcontent and (conditionname in selectedconditions):
+                        showcontent = False
+                        currconditionstack.append(conditionname)
+                    # Do not include tagged line in output
+                    indexofnextline += 1
+                    continue
+                result = regexp_endif.search(line)
+                if result is not None:
+                    conditionname = result.group(1)
+                    if (not showcontent) and (conditionname == currconditionstack[-1]):
+                        showcontent = True
+                        currconditionstack.pop()
+                    # Do not include tagged line in output
+                    indexofnextline += 1
+                    continue
+            if not showcontent:
+                # Content is currently tagged off - skip this line
+                indexofnextline += 1
+                continue
 
             if parsing_state == REGULAR_LINES:
                 line = lines[indexofnextline]
@@ -292,7 +344,8 @@ class Tasks:
                             fromfilepath,
                             lines,
                             indexofnextline,
-                            childequalssigncount
+                            childequalssigncount,
+                            selectedconditions
                         )
                         childmetadata = {}
                         parsedcontentlines.append('\n')
@@ -1280,6 +1333,7 @@ split_parser.add_argument('FROM_FILE', help='Annotated AsciiDoc file (ending wit
 split_parser.add_argument('--legacybasedir', help='Base directory for annotated file content. Subdirectories of this directory are used as default categories.')
 split_parser.add_argument('--category-prefix', help='When splitting an annotated file, add this prefix to default categories.')
 split_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
+split_parser.add_argument('--conditions', help='Define a comma-separated list of condition attributes, for resolving ifdef and ifndef directives')
 split_parser.set_defaults(func=tasks.adoc_split)
 
 # Create the sub-parser for the 'book' command
