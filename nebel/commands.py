@@ -209,10 +209,12 @@ class Tasks:
         if (selectedconditions is not None) and (len(selectedconditions) > 0):
             isconditionalizeactive = True
             showcontent = True
+            showcontentstack = []
             currconditionstack = []
         else:
             isconditionalizeactive = False
             showcontent = True
+            showcontentstack = []
             currconditionstack = []
 
         # Define regular expressions
@@ -221,7 +223,8 @@ class Tasks:
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
         regexp_ifdef    = re.compile(r'^ifdef::([^\[]+)\[\]')
         regexp_ifndef   = re.compile(r'^ifndef::([^\[]+)\[\]')
-        regexp_endif    = re.compile(r'^endif::([^\[]+)\[\]')
+        regexp_ifeval   = re.compile(r'^ifeval::\[([^\]]*)\]')
+        regexp_endif    = re.compile(r'^endif::([^\[]*)\[\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
 
         childmetadata = {}
@@ -244,29 +247,38 @@ class Tasks:
                 result = regexp_ifdef.search(line)
                 if result is not None:
                     conditionname = result.group(1)
-                    # Nested ifdef condition is only relevant, if content is currently tagged on
-                    if showcontent and (conditionname not in selectedconditions):
+                    currconditionstack.append(conditionname)
+                    showcontentstack.append(showcontent)
+                    if conditionname not in selectedconditions:
                         showcontent = False
-                        currconditionstack.append(conditionname)
                     # Do not include tagged line in output
                     indexofnextline += 1
                     continue
                 result = regexp_ifndef.search(line)
                 if result is not None:
                     conditionname = result.group(1)
-                    # Nested ifndef condition is only relevant, if content is currently tagged on
-                    if showcontent and (conditionname in selectedconditions):
+                    currconditionstack.append(conditionname)
+                    showcontentstack.append(showcontent)
+                    if conditionname in selectedconditions:
                         showcontent = False
-                        currconditionstack.append(conditionname)
+                    # Do not include tagged line in output
+                    indexofnextline += 1
+                    continue
+                result = regexp_ifeval.search(line)
+                if result is not None:
+                    currconditionstack.append('')
+                    showcontentstack.append(showcontent)
+                    print ('WARNING: ifeval not supported: defaults to showing content')
                     # Do not include tagged line in output
                     indexofnextline += 1
                     continue
                 result = regexp_endif.search(line)
                 if result is not None:
                     conditionname = result.group(1)
-                    if (not showcontent) and (conditionname == currconditionstack[-1]):
-                        showcontent = True
-                        currconditionstack.pop()
+                    matchcondition = currconditionstack.pop()
+                    showcontent = showcontentstack.pop()
+                    if (conditionname) and (conditionname != matchcondition):
+                        print ('WARNING: Unmatched condition tags: ' + conditionname + '!=' + matchcondition)
                     # Do not include tagged line in output
                     indexofnextline += 1
                     continue
