@@ -222,7 +222,9 @@ class Tasks:
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
         regexp_ifdef    = re.compile(r'^ifdef::([^\[]+)\[\]')
+        regexp_ifdef_single = re.compile(r'^ifdef::([^\[]+)\[([^\]]+)\]')
         regexp_ifndef   = re.compile(r'^ifndef::([^\[]+)\[\]')
+        regexp_ifndef_single = re.compile(r'^ifndef::([^\[]+)\[([^\]]+)\]')
         regexp_ifeval   = re.compile(r'^ifeval::\[([^\]]*)\]')
         regexp_endif    = re.compile(r'^endif::([^\[]*)\[\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
@@ -244,6 +246,28 @@ class Tasks:
 
             if isconditionalizeactive:
                 line = lines[indexofnextline]
+                result = regexp_ifdef_single.search(line)
+                if result is not None:
+                    conditionname = result.group(1)
+                    conditionline = result.group(2)
+                    if conditionname in selectedconditions:
+                        # Replace current line with conditional text
+                        lines[indexofnextline] = conditionline
+                    else:
+                        # Skip to next line
+                        indexofnextline += 1
+                    continue
+                result = regexp_ifndef_single.search(line)
+                if result is not None:
+                    conditionname = result.group(1)
+                    conditionline = result.group(2)
+                    if conditionname not in selectedconditions:
+                        # Replace current line with conditional text
+                        lines[indexofnextline] = conditionline
+                    else:
+                        # Skip to next line
+                        indexofnextline += 1
+                    continue
                 result = regexp_ifdef.search(line)
                 if result is not None:
                     conditionname = result.group(1)
