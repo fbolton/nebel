@@ -190,7 +190,9 @@ class Tasks:
             lines,
             indexofnextline,
             equalssigncount,
-            selectedconditions = None
+            selectedconditions = None,
+            showcontentstack = [],
+            currconditionstack = []
     ):
         # Define some enums for state machine
         REGULAR_LINES = 0
@@ -209,13 +211,9 @@ class Tasks:
         if (selectedconditions is not None) and (len(selectedconditions) > 0):
             isconditionalizeactive = True
             showcontent = True
-            showcontentstack = []
-            currconditionstack = []
         else:
             isconditionalizeactive = False
             showcontent = True
-            showcontentstack = []
-            currconditionstack = []
 
         # Define regular expressions
         regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.*)')
@@ -381,7 +379,9 @@ class Tasks:
                             lines,
                             indexofnextline,
                             childequalssigncount,
-                            selectedconditions
+                            selectedconditions,
+                            showcontentstack,
+                            currconditionstack
                         )
                         childmetadata = {}
                         parsedcontentlines.append('\n')
