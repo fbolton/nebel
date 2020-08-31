@@ -383,8 +383,8 @@ class Tasks:
                             showcontentstack,
                             currconditionstack
                         )
-                        if ('Type' in childmetadata) and (childmetadata['Type'].lower() == 'assembly'):
-                            print ('include::' + generated_file + '[leveloffset=+1]')
+                        #if ('Type' in childmetadata) and (childmetadata['Type'].lower() == 'assembly'):
+                        #    print ('include::' + generated_file + '[leveloffset=+1]')
                         childmetadata = {}
                         parsedcontentlines.append('\n')
                         if generated_file:
