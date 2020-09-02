@@ -181,7 +181,7 @@ class Tasks:
             equalssigncount = 0
             lines = self._resolve_includes(fromfile)
             indexofnextline = 0
-            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount, selectedconditions)
+            self._parse_from_annotated(metadata, fromfile, lines, indexofnextline, equalssigncount, selectedconditions, args.timestamp)
 
     def _parse_from_annotated(
             self,
@@ -191,6 +191,7 @@ class Tasks:
             indexofnextline,
             equalssigncount,
             selectedconditions = None,
+            timestamp = False,
             showcontentstack = [],
             currconditionstack = []
     ):
@@ -371,7 +372,7 @@ class Tasks:
                         if ('Category' not in childmetadata):
                             childmetadata['Category'] = metadata['Category']
                         childmetadata['ConversionStatus'] = 'raw'
-                        childmetadata['ConversionDate'] = str(datetime.datetime.now())
+                        if timestamp: childmetadata['ConversionDate'] = str(datetime.datetime.now())
                         childmetadata['ConvertedFromFile'] = fromfilepath
                         (generated_file, indexofnextline) = self._parse_from_annotated(
                             childmetadata,
@@ -380,6 +381,7 @@ class Tasks:
                             indexofnextline,
                             childequalssigncount,
                             selectedconditions,
+                            timestamp,
                             showcontentstack,
                             currconditionstack
                         )
@@ -1372,6 +1374,7 @@ split_parser.add_argument('--legacybasedir', help='Base directory for annotated 
 split_parser.add_argument('--category-prefix', help='When splitting an annotated file, add this prefix to default categories.')
 split_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
 split_parser.add_argument('--conditions', help='Define a comma-separated list of condition attributes, for resolving ifdef and ifndef directives')
+split_parser.add_argument('--timestamp', help='Generate a timestamp in the generated module and assembly files', action='store_true')
 split_parser.set_defaults(func=tasks.adoc_split)
 
 # Create the sub-parser for the 'book' command
