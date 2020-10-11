@@ -1,6 +1,7 @@
 = Reference material
 //In the title of a reference module, include nouns that are used in the body text. For example, "Keyboard shortcuts for ___" or "Command options for ___." This helps readers and search engines find the information quickly.
 
+[role="_abstract"]
 A short introductory paragraph is required for the reference module.
 It will provide an overview of the module.
 

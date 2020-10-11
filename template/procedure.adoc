@@ -1,6 +1,7 @@
 = Doing one procedure
 // Start the title of a procedure module with a verb, such as Creating or Create. See also _Wording of headings_ in _The IBM Style Guide_.
 
+[role="_abstract"]
 This paragraph is the procedure module introduction: a short description of the procedure.
 
 .Prerequisites
@@ -17,6 +18,7 @@ This paragraph is the procedure module introduction: a short description of the 
 
 . Use an unnumbered bullet (*) if the procedure includes only one step.
 
+[role="_additional_resources"]
 .Additional resources
 
 * A bulleted list of links to other material closely related to the contents of the procedure module.
