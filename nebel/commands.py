@@ -413,6 +413,8 @@ class Tasks:
                         metadata_name = 'Type'
                     if metadata_name in self.context.allMetadataFields:
                         childmetadata[metadata_name] = metadata_value
+                    else:
+                        print 'WARNING: Unknown metadata "' + metadata_name + '" in file ' + fromfilepath
                     #print 'Metadata: ' + metadata_name + ' = ' + metadata_value
                     continue
                 # Parse ID line
