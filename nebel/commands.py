@@ -446,19 +446,27 @@ class Tasks:
 
 
 
-    def _scan_file_for_includes(self, asfile):
+    def _scan_file_for_includes(self, asfile, recursive=False):
         includedfilelist = []
         regexp = re.compile(r'^\s*include::([^\[]+)\[[^\]]*\]')
         with open(asfile, 'r') as f:
             for line in f:
                 result = regexp.search(line)
                 if result is not None:
-                    includedfile = result.group(1)
+                    includedfile = self.context.resolve_raw_attribute_value(result.group(1))
                     directory = os.path.dirname(asfile)
                     path_to_included_file = os.path.relpath(os.path.realpath(os.path.normpath(os.path.join(directory, includedfile))))
                     if includedfile.endswith('.adoc'):
                         includedfilelist.append(path_to_included_file)
-        return includedfilelist
+        allincludedfilelist = includedfilelist
+        if (recursive):
+            for file in includedfilelist:
+                if not os.path.exists(file):
+                    print 'ERROR: While scanning ' + asfile + ': included file, ' + file + ', does not exist'
+                    sys.exit()
+                childincludedfilelist = self._scan_file_for_includes(file, recursive=True)
+                allincludedfilelist.extend(childincludedfilelist)
+        return allincludedfilelist
 
     def _resolve_includes(self, file, baselevel=0, selectedtags=None):
         # Resolve all of the nested includes in 'file' to plain text and return a plain text array of all the lines in the file
@@ -892,6 +900,17 @@ class Tasks:
             metadata['ParentAssemblies'] = ','.join(parentassemblies[modulefile])
             self.update_metadata(modulefile, metadata)
 
+    def _scan_for_bookfiles(self):
+        # Scan current dir for top-level book files
+        booklist = []
+        for root, dirs, files in os.walk(os.curdir):
+            for dir in dirs:
+                # Test for existence of master.adoc file
+                bookdir = os.path.normpath(os.path.join(root, dir))
+                bookfile = os.path.join(bookdir, 'master.adoc')
+                if os.path.exists(bookfile):
+                    booklist.append(bookfile)
+        return booklist
 
     def _update_fix_links(self, assemblyfiles, modulefiles, attrfilelist = None):
         # Set of files whose links should be fixed
@@ -902,14 +921,7 @@ class Tasks:
         else:
             print 'ERROR: No attribute files specified'
         # Identify top-level book files to scan
-        booklist = []
-        for root, dirs, files in os.walk(os.curdir):
-            for dir in dirs:
-                # Test for existence of master.adoc file
-                bookdir = os.path.normpath(os.path.join(root, dir))
-                bookfile = os.path.join(bookdir, 'master.adoc')
-                if os.path.exists(bookfile):
-                    booklist.append(bookfile)
+        booklist = self._scan_for_bookfiles()
         # Initialize anchor ID dictionary, context stack, and legacy ID lookup
         anchorid_dict = {}
         contextstack = []
@@ -1227,6 +1239,38 @@ class Tasks:
         # Move new file
         shutil.move(abs_path, file)
 
+    def orphan_search(self, args):
+        # Determine the set of categories to filter (if any)
+        if args.category_list:
+            filtercategoryset = set(args.category_list.split(','))
+            map(str.strip, filtercategoryset)
+        else:
+            filtercategoryset = None
+        # Parse the specified attributes files (if any)
+        if args.attribute_files:
+            attrfilelist = args.attribute_files.strip().split(',')
+            self.context.parse_attribute_files(attrfilelist)
+        booklist = self._scan_for_bookfiles()
+        # Find the set of all included files
+        allincludedfileset = set()
+        for bookfile in booklist:
+            includedfiles = self._scan_file_for_includes(bookfile, recursive=True)
+            allincludedfileset |= set(includedfiles)
+        # Find the set of all known module and assemblyfiles
+        categoryset = self.scan_for_categories(self.context.MODULES_DIR) | self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+        if filtercategoryset is not None:
+            categoryset &= filtercategoryset
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        modulefiles = self.scan_for_categorised_files(self.context.MODULES_DIR, categoryset, filefilter='module')
+        #imagefiles = self.scan_for_categorised_files(self.context.IMAGES_DIR, categoryset)
+        orphanassemblyfiles = set(assemblyfiles) - allincludedfileset
+        orphanmodulefiles   = set(modulefiles) - allincludedfileset
+        # Report
+        for orphanassemblyfile in orphanassemblyfiles:
+            print orphanassemblyfile
+        for orphanmodulefile in orphanmodulefiles:
+            print orphanmodulefile
+
 
     def mv(self, args):
         frompattern = os.path.normpath(args.FROM_FILE)
@@ -1402,6 +1446,12 @@ update_parser.add_argument('-b', '--book', help='Apply update only to the specif
 update_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
 update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
 update_parser.set_defaults(func=tasks.update)
+
+# Create the sub-parser for the 'orphan' command
+orphan_parser = subparsers.add_parser('orphan', help='Search for orphaned module and assembly files')
+orphan_parser.add_argument('-c', '--category-list', help='Filter for orphan files belonging to this comma-separated list of categories')
+orphan_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
+orphan_parser.set_defaults(func=tasks.orphan_search)
 
 
 # Now, parse the args and call the relevant sub-command

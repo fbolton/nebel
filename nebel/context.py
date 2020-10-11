@@ -5,6 +5,7 @@ Created on January 2, 2019
 '''
 
 import re
+import sys
 import ConfigParser
 
 
@@ -92,7 +93,11 @@ class NebelContext:
 
     def replace_matching_attribute(self, match_obj):
         name = match_obj.group(1)
-        duple = self.attributeDict[name]
+        if self.attributeDict.has_key(name):
+            duple = self.attributeDict[name]
+        else:
+            print 'ERROR: Attribute ' + name + ' cannot be resolved. Use -a option to add attribute files.'
+            sys.exit()
         if duple[1] is None:
             duple[1] = self.resolve_raw_attribute_value(duple[0])
         return duple[1]
