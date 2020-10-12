@@ -618,7 +618,7 @@ nebel orphan [-h] [-c CATEGORY_LIST] [-a ATTRIBUTE_FILES]
 
 `-h`:: Displays a help message.
 
-`-c CATEGORY_LIST`:: Replace `CATEGORY_LIST` with a comma-separated list of categories. Nebel looks for orphan files in `assemblies` and `modules` directories in only the categories that you specify. If you do not specify the `-c` option, Nebel checks all categories for orphans. 
+`-c CATEGORY_LIST`:: Replace `CATEGORY_LIST` with a comma-separated list of categories. Nebel checks for orphan files by evaluating `include` statements in all `master.adoc` files and in `assemblies` and `modules` subdirectories for only the categories that you specify. If you do not specify the `-c` option, Nebel checks all categories for orphans. 
 
 `-a ATTRIBUTE_FILES`:: Replace `ATTRIBUTE_FILES` with a comma-separated list of attribute files that Nebel needs to resolve paths in `include` statements in the categories that the command is checking. 
 
