@@ -1296,7 +1296,10 @@ class Tasks:
             fromsuffixlen = len(fromsuffix)
             fromfiles = glob.glob(frompattern.replace('{}', '*'))
             for fromfile in fromfiles:
-                fromfilling = fromfile[fromprefixlen : -fromsuffixlen]
+                if fromsuffixlen==0:
+                    fromfilling = fromfile[fromprefixlen :]
+                else:
+                    fromfilling = fromfile[fromprefixlen : -fromsuffixlen]
                 toprefix, tosuffix = topattern.split('{}')
                 tofile = toprefix + fromfilling + tosuffix
                 # Generate a database of parent assemblies
@@ -1317,7 +1320,7 @@ class Tasks:
             return
         # Make sure that the destination directory exists
         destination_dir, basename = os.path.split(tofile)
-        if not os.path.exists(destination_dir):
+        if destination_dir!='' and not os.path.exists(destination_dir):
             os.makedirs(destination_dir)
         # Move the file
         os.rename(fromfile, tofile)
