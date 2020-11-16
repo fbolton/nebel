@@ -922,21 +922,23 @@ class Tasks:
             print 'ERROR: No attribute files specified'
         # Identify top-level book files to scan
         booklist = self._scan_for_bookfiles()
-        # Initialize anchor ID dictionary, context stack, and legacy ID lookup
+        # Initialize anchor ID dictionary, context stack, legacy ID, and root of ID lookup
         anchorid_dict = {}
         contextstack = []
         legacyid_dict = {}
+        rootofid_dict = {}
         # Process each book in the list
         for bookfile in booklist:
             booktitle = self._scan_for_title(bookfile)
             booktitle_slug = self._convert_title_to_slug(booktitle)
             #print 'Title URL slug: ' + booktitle_slug
             print 'Title: ' + booktitle
-            anchorid_dict, contextstack, legacyid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, booktitle_slug, bookfile)
+            anchorid_dict, contextstack, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, bookfile)
             #print anchorid_dict.keys()
         #print anchorid_dict
         self.anchorid_dict = anchorid_dict
         self.legacyid_dict = legacyid_dict
+        self.rootofid_dict = rootofid_dict
 
         for fixfile in fixfileset:
             print 'Updating links for file: ' + fixfile
@@ -948,6 +950,7 @@ class Tasks:
                     for line in old_file:
                         line = self._regexp_replace_angles(line)
                         line = self._regexp_replace_xref(line)
+                        line = self._regexp_replace_link(line)
                         new_file.write(line)
             # Remove original file
             os.remove(fixfile)
@@ -956,13 +959,13 @@ class Tasks:
 
 
     def _regexp_replace_angles(self, value):
-        regexp = re.compile(r'<<([\w\-]+),?([^>]*)>>')
+        regexp = re.compile(r'<<([^,>]+),?([^>]*)>>')
         new_value = regexp.sub(self._on_match_xref, value)
         return new_value
 
 
     def _regexp_replace_xref(self, value):
-        regexp = re.compile(r'xref:([\w\-]+)\[([^]]*)\]')
+        regexp = re.compile(r'xref:([\w\-]+)\[([^\]]*)\]')
         new_value = regexp.sub(self._on_match_xref, value)
         return new_value
 
@@ -970,18 +973,78 @@ class Tasks:
     def _on_match_xref(self, match_obj):
         anchorid = match_obj.group(1)
         optionaltext = match_obj.group(2)
-        if anchorid in self.anchorid_dict:
-            new_anchorid = anchorid
-        elif anchorid in self.legacyid_dict:
-            new_anchorid = self.legacyid_dict[anchorid]
+        new_anchorid = self._repair_anchorid(anchorid)
+        if optionaltext:
+            return 'xref:' + new_anchorid + '[' + optionaltext + ']'
+        else:
+            return 'xref:' + new_anchorid + '[]'
+
+    def _regexp_replace_link(self, value):
+        regexp = re.compile(r'link:(\{[\w\-]+\})#([^\[]+)\[([^\]]*)\]')
+        new_value = regexp.sub(self._on_match_link, value)
+        return new_value
+
+    def _on_match_link(self, match_obj):
+        bookattribute = match_obj.group(1)
+        anchorid = match_obj.group(2)
+        optionaltext = match_obj.group(3)
+        new_anchorid = self._repair_anchorid(anchorid)
+        if optionaltext:
+            return 'link:' + bookattribute + '#' + new_anchorid + '[' + optionaltext + ']'
+        else:
+            return 'link:' + bookattribute + '#' + new_anchorid + '[]'
+
+    def _repair_anchorid(self, anchorid):
+        if anchorid.endswith('_{context}'):
+            # The context attribute should *not* appear in a link or xref
+            plainanchorid = anchorid.replace('_{context}','')
+        else:
+            plainanchorid = anchorid
+        if plainanchorid in self.anchorid_dict:
+            new_anchorid = plainanchorid
+        elif plainanchorid in self.legacyid_dict:
+            new_anchorid = self.legacyid_dict[plainanchorid]
+        elif plainanchorid in self.rootofid_dict:
+            new_anchorid = self.choose_anchorid_from_rootofid_dict(plainanchorid)
+            if new_anchorid is None:
+                # Leave the ID unchanged
+                new_anchorid = anchorid
+        elif '_' in plainanchorid:
+                # Last attempt to fix - ID might have wrong context value after the '_' char
+                rootofid, contextval = plainanchorid.rsplit('_', 1)
+                if rootofid in self.rootofid_dict:
+                    new_anchorid = self.choose_anchorid_from_rootofid_dict(rootofid)
+                    if new_anchorid is None:
+                        # Leave the ID unchanged
+                        new_anchorid = anchorid
+                else:
+                    new_anchorid = anchorid
         else:
             print 'WARNING: link to unknown ID: ' + anchorid
             new_anchorid = anchorid
-        if optionaltext:
-            return '<<' + new_anchorid + ',' + optionaltext + '>>'
-        else:
-            return '<<' + new_anchorid + '>>'
+        return new_anchorid
 
+    def choose_anchorid_from_rootofid_dict(self, anchorid):
+        idlist = self.rootofid_dict[anchorid]
+        if len(idlist) == 1:
+            return idlist[0]
+        else:
+            print '\tChoose the correct target ID for the link or S to skip:'
+            for k, targetid in enumerate(idlist):
+                print '\t' + str(k) + ') ' + targetid
+            print '\tS) Skip and leave this include unchanged'
+            response = ''
+            while response.strip() == '':
+                response = raw_input('\tEnter selection [S]: ')
+                response = response.strip()
+                if (response == '') or (response.lower() == 's'):
+                    # Skip
+                    return None
+                elif (0 <= int(response)) and (int(response) < len(idlist)):
+                    return idlist[int(response)]
+                else:
+                    response = ''
+            return None
 
     def _scan_for_title(self, filepath):
         if not os.path.exists(filepath):
@@ -1005,7 +1068,7 @@ class Tasks:
         return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
-    def _parse_file_for_anchorids(self, anchorid_dict, contextstack, legacyid_dict, booktitle_slug, filepath):
+    def _parse_file_for_anchorids(self, anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, filepath):
         # Define action enums
         NO_ACTION = 0
         ORDINARY_LINE = 1
@@ -1062,7 +1125,8 @@ class Tasks:
                         continue
                     result = regexp_context.search(line)
                     if result is not None:
-                        newcontext = result.group(1).strip()
+                        rawcontext = result.group(1).strip()
+                        newcontext = self.context.resolve_raw_attribute_value(rawcontext)
                         action = CONTEXT_LINE
                         continue
                     result = regexp_include.search(line)
@@ -1091,6 +1155,7 @@ class Tasks:
                     else:
                         anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath }
                     tentative_anchor_id = ''
+                    tentative_root_of_id = ''
                     tentative_metadata = {}
                 elif action == ORDINARY_LINE:
                     # After hitting an ordinary line, preceding metadata is no longer current
@@ -1103,12 +1168,17 @@ class Tasks:
                         if contextstack:
                             currentcontext = contextstack[-1]
                             anchorid = rawanchorid.replace('{context}', currentcontext)
+                            rootofid = rawanchorid.replace('_{context}', '')
                         else:
                             print 'ERROR: Found ID with embedded {context}, but no context attribute defined'
+                            print '    file: ' + filepath
+                            print '    ID:   ' + rawanchorid
                             sys.exit()
                     else:
                         anchorid = rawanchorid
+                        rootofid = rawanchorid
                     tentative_anchor_id = anchorid
+                    tentative_root_of_id = rootofid
                 elif (action == TITLE_LINE) and tentative_anchor_id:
                     # Define an anchor ID that is associated with a heading
                     if tentative_anchor_id not in anchorid_dict:
@@ -1121,10 +1191,18 @@ class Tasks:
                         if 'ConvertedFromID' in tentative_metadata:
                             anchorid_dict[tentative_anchor_id][booktitle_slug]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
                             legacyid_dict[tentative_metadata['ConvertedFromID']] = tentative_anchor_id
+                        if tentative_root_of_id != tentative_anchor_id:
+                            if tentative_root_of_id not in rootofid_dict:
+                                # Initialize list of anchor IDs in this slot
+                                rootofid_dict[tentative_root_of_id] = [ tentative_anchor_id ]
+                            else:
+                                rootofid_dict[tentative_root_of_id].append(tentative_anchor_id)
                     tentative_anchor_id = ''
+                    tentative_root_of_id = ''
                     tentative_metadata = {}
                 elif (action == TITLE_LINE) and not tentative_anchor_id:
                     tentative_anchor_id = ''
+                    tentative_root_of_id = ''
                     tentative_metadata = {}
                 elif action == CONTEXT_LINE:
                     if not REMEMBER_TO_POP_CONTEXT:
@@ -1140,12 +1218,12 @@ class Tasks:
                     if not os.path.exists(includefile):
                         print 'ERROR: Included file does not exist: ' + includefile
                         sys.exit()
-                    anchorid_dict, contextstack, legacyid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, booktitle_slug, includefile)
+                    anchorid_dict, contextstack, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, includefile)
                     tentative_anchor_id = ''
                     tentative_metadata = {}
         if REMEMBER_TO_POP_CONTEXT:
             contextstack.pop()
-        return anchorid_dict, contextstack, legacyid_dict
+        return anchorid_dict, contextstack, legacyid_dict, rootofid_dict
 
     def _update_generate_ids(self, assemblyfiles, modulefiles):
         # Set of files for which IDs should be generated
@@ -1358,6 +1436,9 @@ class Tasks:
         # Move new file
         shutil.move(abs_path, file)
 
+    def toc(self, args):
+        pass
+
 
     def version(self, args):
         pass
@@ -1455,6 +1536,11 @@ orphan_parser = subparsers.add_parser('orphan', help='Search for orphaned module
 orphan_parser.add_argument('-c', '--category-list', help='Filter for orphan files belonging to this comma-separated list of categories')
 orphan_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
 orphan_parser.set_defaults(func=tasks.orphan_search)
+
+# Create the sub-parser for the 'toc' command
+toc_parser = subparsers.add_parser('toc', help='List TOC for assembly or book')
+toc_parser.add_argument('ASSEMBLY_OR_BOOK_FILE', help='Path to the assembly or book file whose table of contents you want to list')
+toc_parser.set_defaults(func=tasks.toc)
 
 
 # Now, parse the args and call the relevant sub-command
