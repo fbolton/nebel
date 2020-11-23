@@ -14,6 +14,7 @@ import nebel.context
 import nebel.factory
 import datetime
 import glob
+import hashlib
 
 class Tasks:
     def __init__(self, context):
@@ -721,29 +722,42 @@ class Tasks:
 
 
     def update(self,args):
-        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links) and (not args.generate_ids):
+        if (not args.fix_includes) and (not args.parent_assemblies) and (not args.fix_links) and (not args.generate_ids) and (not args.add_contexts):
             print 'ERROR: Missing required option(s)'
             sys.exit()
-        # Determine the set of categories to update
-        categoryset = set()
-        if args.category_list:
-            categoryset = set(args.category_list.split(','))
-            map(str.strip, categoryset)
-        elif args.book:
-            if not os.path.exists(args.book):
-                print 'ERROR: ' + args.book + ' directory does not exist.'
-                sys.exit()
-            categoryset = self.scan_for_categories(os.path.join(args.book, self.context.MODULES_DIR))\
-                          | self.scan_for_categories(os.path.join(args.book, self.context.ASSEMBLIES_DIR))
-        else:
-            categoryset = self.scan_for_categories(self.context.MODULES_DIR) | self.scan_for_categories(self.context.ASSEMBLIES_DIR)
         if args.attribute_files:
             attrfilelist = args.attribute_files.strip().split(',')
         else:
             attrfilelist = None
-        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
-        modulefiles = self.scan_for_categorised_files(self.context.MODULES_DIR, categoryset, filefilter='module')
-        imagefiles = self.scan_for_categorised_files(self.context.IMAGES_DIR, categoryset)
+        if args.FILE:
+            head, tail = os.path.split(args.FILE)
+            type = self.type_of_file(tail)
+            if type == 'assembly':
+                assemblyfiles = [ args.FILE ]
+                modulefiles = []
+            elif type in ['procedure', 'concept', 'reference']:
+                assemblyfiles = []
+                modulefiles = [args.FILE]
+            else:
+                print 'ERROR: File must be a module or an assembly: ' + args.FILE
+                sys.exit()
+        else:
+            # Determine the set of categories to update
+            categoryset = set()
+            if args.category_list:
+                categoryset = set(args.category_list.split(','))
+                map(str.strip, categoryset)
+            elif args.book:
+                if not os.path.exists(args.book):
+                    print 'ERROR: ' + args.book + ' directory does not exist.'
+                    sys.exit()
+                categoryset = self.scan_for_categories(os.path.join(args.book, self.context.MODULES_DIR))\
+                              | self.scan_for_categories(os.path.join(args.book, self.context.ASSEMBLIES_DIR))
+            else:
+                categoryset = self.scan_for_categories(self.context.MODULES_DIR) | self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+            assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+            modulefiles = self.scan_for_categorised_files(self.context.MODULES_DIR, categoryset, filefilter='module')
+            imagefiles = self.scan_for_categorised_files(self.context.IMAGES_DIR, categoryset)
         # Select the kind of update to implement
         if args.fix_includes:
             self._update_fix_includes(assemblyfiles, modulefiles)
@@ -753,6 +767,8 @@ class Tasks:
             self._update_parent_assemblies(assemblyfiles)
         if args.generate_ids:
             self._update_generate_ids(assemblyfiles, modulefiles)
+        if args.add_contexts:
+            self._add_contexts(assemblyfiles, modulefiles, attrfilelist)
 
 
     def scan_for_categories(self, rootdir):
@@ -1436,6 +1452,142 @@ class Tasks:
         # Move new file
         shutil.move(abs_path, file)
 
+
+    def _add_contexts(self, assemblyfiles, modulefiles, attrfilelist):
+        # Set of files to which contexts should be added
+        fixfileset = set(assemblyfiles) | set(modulefiles)
+        # Parse the specified attributes files
+        if attrfilelist is not None:
+            self.context.parse_attribute_files(attrfilelist)
+        else:
+            print 'WARNING: No attribute files specified'
+
+        # Define some enums for state machine
+        REGULAR_LINES = 0
+        EXPECTING_CONTEXT_SET = 1
+        EXPECTING_INCLUDE = 2
+        EXPECTING_CONTEXT_RESTORE = 3
+
+        # Initialize Boolean state variables
+        parsing_state = REGULAR_LINES
+
+        # Define regular expressions
+        regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
+        regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_title = re.compile(r'^(=+)\s+(\S.*)')
+
+        for fixfile in fixfileset:
+            print 'Adding contexts to file: ' + fixfile
+            # Initialize loop variables
+            title = ''
+            title_sha = ''
+            if fixfile in assemblyfiles:
+                is_assembly = True
+            else:
+                is_assembly = False
+            dirname = os.path.dirname(fixfile)
+            # Create temp file
+            fh, abs_path = tempfile.mkstemp()
+            with os.fdopen(fh, 'w') as new_file:
+                with open(fixfile) as old_file:
+                    for line in old_file:
+                        # Ignore blank lines
+                        if line.strip() == '':
+                            new_file.write(line)
+                            continue
+                        # Ignore comment lines
+                        if line.strip().startswith('//'):
+                            new_file.write(line)
+                            continue
+                        if parsing_state == REGULAR_LINES:
+                            # Process ID line
+                            found_id = ''
+                            result = regexp_id_line1.search(line)
+                            if result is not None:
+                                found_id = result.group(1)
+                            result = regexp_id_line2.search(line)
+                            if result is not None:
+                                found_id = result.group(1)
+                            if found_id:
+                                if not found_id.endswith('_{context}'):
+                                    line = line.replace(found_id, found_id + '_{context}')
+                                new_file.write(line)
+                                continue
+                            # Process title line
+                            result = regexp_title.search(line)
+                            if result is not None:
+                                equalssigncount = len(result.group(1))
+                                title = self.context.resolve_raw_attribute_value(result.group(2))
+                                title_sha = self._generate_hash(title)
+                                new_file.write(line)
+                                continue
+                            # Process include:: line
+                            if is_assembly and line.startswith('include::'):
+                                if title_sha:
+                                    new_file.write(':parent-of-context-' + title_sha + ': {context}\n')
+                                    new_file.write(':context: {context}-' + title_sha + '\n')
+                                    new_file.write(line)
+                                    new_file.write(':context: {parent-of-context-' + title_sha + '}\n')
+                                    continue
+                                else:
+                                    print 'ERROR: Expected assembly title before first include'
+                                    sys.exit()
+                            # Process :parent-of-context-<SHA>: {context} line
+                            if is_assembly and line.startswith(':parent-of-context-'):
+                                if title_sha:
+                                    parsing_state = EXPECTING_CONTEXT_SET
+                                    new_file.write(':parent-of-context-' + title_sha + ': {context}\n')
+                                    continue
+                                else:
+                                    print 'ERROR: Expected assembly title before first instance of :parent-of-context-<SHA>:'
+                                    sys.exit()
+                            # Process *unexpected* context definition
+                            if is_assembly and line.startswith(':context:'):
+                                print 'ERROR: Did not expect context definition at this point'
+                                sys.exit()
+                            # Process regular line
+                            new_file.write(line)
+                            continue
+                        elif parsing_state == EXPECTING_CONTEXT_SET:
+                            # Process :context: {context}-<SHA> line
+                            if line.startswith(':context:'):
+                                parsing_state = EXPECTING_INCLUDE
+                                new_file.write(':context: {context}-' + title_sha + '\n')
+                                continue
+                            else:
+                                print 'ERROR: Expected context definition'
+                                sys.exit()
+                        elif parsing_state == EXPECTING_INCLUDE:
+                            # Process include:: line
+                            if line.startswith('include::'):
+                                parsing_state = EXPECTING_CONTEXT_RESTORE
+                                new_file.write(line)
+                                continue
+                            else:
+                                print 'ERROR: Expected include line'
+                                sys.exit()
+                        elif parsing_state == EXPECTING_CONTEXT_RESTORE:
+                            # Process :context: {parent-of-context-<SHA>} line
+                            if line.startswith(':context: {parent-of-context-'):
+                                parsing_state = REGULAR_LINES
+                                new_file.write(':context: {parent-of-context-' + title_sha + '}\n')
+                                continue
+                            else:
+                                print 'ERROR: Expected context restore line'
+                                sys.exit()
+            # Remove original file
+            os.remove(fixfile)
+            # Move new file
+            shutil.move(abs_path, fixfile)
+
+
+    def _generate_hash(self, text):
+        # Generates a 6-character hex encoded hash
+        hash = hashlib.sha256(text.encode('UTF-8')).hexdigest()
+        truncated_hash = hash[:6]
+        return truncated_hash
+
+
     def toc(self, args):
         pass
 
@@ -1523,12 +1675,14 @@ book_parser.set_defaults(func=tasks.mv)
 # Create the sub-parser for the 'update' command
 update_parser = subparsers.add_parser('update', help='Update metadata in modules and assemblies')
 update_parser.add_argument('--fix-includes', help='Fix erroneous include directives in assemblies', action='store_true')
-update_parser.add_argument('--fix-links', help='Fix erroneous cross-reference links (NOT FULLY IMPLEMENTED)', action='store_true')
+update_parser.add_argument('--fix-links', help='Fix erroneous cross-reference links', action='store_true')
 update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
+update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
+update_parser.add_argument('--add-contexts', help='Add _{context} to IDs and add boilerplate around include directives', action='store_true')
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
 update_parser.add_argument('-b', '--book', help='Apply update only to the specified book')
 update_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
-update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
+update_parser.add_argument('FILE', help='File to update OR you can omit this argument and use --book or --category-list instead', nargs='?')
 update_parser.set_defaults(func=tasks.update)
 
 # Create the sub-parser for the 'orphan' command
