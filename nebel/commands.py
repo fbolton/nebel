@@ -938,9 +938,8 @@ class Tasks:
             print 'ERROR: No attribute files specified'
         # Identify top-level book files to scan
         booklist = self._scan_for_bookfiles()
-        # Initialize anchor ID dictionary, context stack, legacy ID, and root of ID lookup
+        # Initialize anchor ID dictionary, legacy ID, and root of ID lookup
         anchorid_dict = {}
-        contextstack = []
         legacyid_dict = {}
         rootofid_dict = {}
         # Process each book in the list
@@ -949,7 +948,7 @@ class Tasks:
             booktitle_slug = self._convert_title_to_slug(booktitle)
             #print 'Title URL slug: ' + booktitle_slug
             print 'Title: ' + booktitle
-            anchorid_dict, contextstack, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, bookfile)
+            anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, bookfile)
             #print anchorid_dict.keys()
         #print anchorid_dict
         self.anchorid_dict = anchorid_dict
@@ -1084,26 +1083,23 @@ class Tasks:
         return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
-    def _parse_file_for_anchorids(self, anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, filepath):
+    def _parse_file_for_anchorids(self, anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, filepath):
         # Define action enums
         NO_ACTION = 0
         ORDINARY_LINE = 1
         METADATA_LINE = 2
         ID_LINE = 3
         TITLE_LINE = 4
-        CONTEXT_LINE = 5
-        INCLUDE_LINE = 6
+        INCLUDE_LINE = 5
+        ATTRIBUTE_LINE = 6
         BLANK_LINE = 7
-
-        # Initialize Boolean state variables
-        REMEMBER_TO_POP_CONTEXT = False
 
         # Define regular expressions
         regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.+)')
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
-        regexp_context = re.compile(r'^:context:\s+([^\{\}]*)$')
+        regexp_attribute = re.compile(r'^:([\w\-]+):\s+(.*)')
         regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
         regexp_blank = re.compile(r'^\s*$')
 
@@ -1139,11 +1135,12 @@ class Tasks:
                         title = self.context.resolve_raw_attribute_value(rawtitle)
                         action = TITLE_LINE
                         continue
-                    result = regexp_context.search(line)
+                    result = regexp_attribute.search(line)
                     if result is not None:
-                        rawcontext = result.group(1).strip()
-                        newcontext = self.context.resolve_raw_attribute_value(rawcontext)
-                        action = CONTEXT_LINE
+                        name = result.group(1)
+                        value = result.group(2).strip()
+                        self.context.update_attribute(name, value)
+                        action = ATTRIBUTE_LINE
                         continue
                     result = regexp_include.search(line)
                     if result is not None:
@@ -1158,7 +1155,7 @@ class Tasks:
                     # Default action is ordinary line
                     action = ORDINARY_LINE
                 # Take action
-                if action == BLANK_LINE:
+                if action == BLANK_LINE or action == ATTRIBUTE_LINE:
                     # It's a noop
                     pass
                 elif (action == ORDINARY_LINE) and tentative_anchor_id:
@@ -1181,8 +1178,8 @@ class Tasks:
                         tentative_metadata[property] = value
                 elif action == ID_LINE:
                     if rawanchorid.endswith('}'):
-                        if contextstack:
-                            currentcontext = contextstack[-1]
+                        currentcontext = self.context.lookup_attribute('context')
+                        if currentcontext is not None:
                             anchorid = rawanchorid.replace('{context}', currentcontext)
                             rootofid = rawanchorid.replace('_{context}', '')
                         else:
@@ -1220,26 +1217,16 @@ class Tasks:
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
                     tentative_metadata = {}
-                elif action == CONTEXT_LINE:
-                    if not REMEMBER_TO_POP_CONTEXT:
-                        # First context definition in the current file
-                        contextstack.append(newcontext)
-                    else:
-                        # Context already defined, overwrite current value
-                        contextstack[-1] = newcontext
-                    REMEMBER_TO_POP_CONTEXT = True
                 elif action == INCLUDE_LINE:
                     currentdir, basename = os.path.split(filepath)
                     includefile = os.path.normpath(os.path.join(currentdir, includefile))
                     if not os.path.exists(includefile):
                         print 'ERROR: Included file does not exist: ' + includefile
                         sys.exit()
-                    anchorid_dict, contextstack, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, contextstack, legacyid_dict, rootofid_dict, booktitle_slug, includefile)
+                    anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, includefile)
                     tentative_anchor_id = ''
                     tentative_metadata = {}
-        if REMEMBER_TO_POP_CONTEXT:
-            contextstack.pop()
-        return anchorid_dict, contextstack, legacyid_dict, rootofid_dict
+        return anchorid_dict, legacyid_dict, rootofid_dict
 
     def _update_generate_ids(self, assemblyfiles, modulefiles):
         # Set of files for which IDs should be generated

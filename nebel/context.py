@@ -83,6 +83,22 @@ class NebelContext:
         # print self.bookUrlAttributes
 
 
+    def update_attribute(self, name, value):
+        # Adds a new attribute to the dictionary OR updates an existing entry
+        if value is not None and value != '':
+            resolved_value = self.resolve_raw_attribute_value(value)
+        else:
+            resolved_value = value
+        self.attributeDict[name] = [value, resolved_value]
+
+
+    def lookup_attribute(self, name):
+        if name in self.attributeDict:
+            return self.attributeDict[name][1]
+        else:
+            return None
+
+
     def resolve_raw_attribute_value(self, value):
         if len(self.attributeDict) == 0:
             return value
