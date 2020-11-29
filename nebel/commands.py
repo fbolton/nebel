@@ -1467,7 +1467,9 @@ class Tasks:
             print 'Adding contexts to file: ' + fixfile
             # Initialize loop variables
             title = ''
-            title_sha = ''
+            most_recent_root_id = ''
+            title_id = ''
+            title_id_sha = ''
             if fixfile in assemblyfiles:
                 is_assembly = True
             else:
@@ -1496,6 +1498,8 @@ class Tasks:
                             if result is not None:
                                 found_id = result.group(1)
                             if found_id:
+                                most_recent_root_id = found_id.replace('_{context}', '')
+                                # Add _{context} to ID
                                 if not found_id.endswith('_{context}'):
                                     line = line.replace(found_id, found_id + '_{context}')
                                 new_file.write(line)
@@ -1505,25 +1509,30 @@ class Tasks:
                             if result is not None:
                                 equalssigncount = len(result.group(1))
                                 title = self.context.resolve_raw_attribute_value(result.group(2))
-                                title_sha = self._generate_hash(title)
+                                if most_recent_root_id != '':
+                                    title_id = most_recent_root_id
+                                    title_id_sha = self._generate_hash(title_id)
+                                else:
+                                    print 'ERROR: Expected ID definition before heading = ' + title
+                                    sys.exit()
                                 new_file.write(line)
                                 continue
                             # Process include:: line
                             if is_assembly and line.startswith('include::'):
-                                if title_sha:
-                                    new_file.write(':parent-of-context-' + title_sha + ': {context}\n')
-                                    new_file.write(':context: {context}-' + title_sha + '\n')
+                                if title_id_sha:
+                                    new_file.write(':parent-of-context-' + title_id_sha + ': {context}\n')
+                                    new_file.write(':context: {context}-' + title_id_sha + '\n')
                                     new_file.write(line)
-                                    new_file.write(':context: {parent-of-context-' + title_sha + '}\n')
+                                    new_file.write(':context: {parent-of-context-' + title_id_sha + '}\n')
                                     continue
                                 else:
                                     print 'ERROR: Expected assembly title before first include'
                                     sys.exit()
                             # Process :parent-of-context-<SHA>: {context} line
                             if is_assembly and line.startswith(':parent-of-context-'):
-                                if title_sha:
+                                if title_id_sha:
                                     parsing_state = EXPECTING_CONTEXT_SET
-                                    new_file.write(':parent-of-context-' + title_sha + ': {context}\n')
+                                    new_file.write(':parent-of-context-' + title_id_sha + ': {context}\n')
                                     continue
                                 else:
                                     print 'ERROR: Expected assembly title before first instance of :parent-of-context-<SHA>:'
@@ -1539,7 +1548,7 @@ class Tasks:
                             # Process :context: {context}-<SHA> line
                             if line.startswith(':context:'):
                                 parsing_state = EXPECTING_INCLUDE
-                                new_file.write(':context: {context}-' + title_sha + '\n')
+                                new_file.write(':context: {context}-' + title_id_sha + '\n')
                                 continue
                             else:
                                 print 'ERROR: Expected context definition'
@@ -1557,7 +1566,7 @@ class Tasks:
                             # Process :context: {parent-of-context-<SHA>} line
                             if line.startswith(':context: {parent-of-context-'):
                                 parsing_state = REGULAR_LINES
-                                new_file.write(':context: {parent-of-context-' + title_sha + '}\n')
+                                new_file.write(':context: {parent-of-context-' + title_id_sha + '}\n')
                                 continue
                             else:
                                 print 'ERROR: Expected context restore line'
