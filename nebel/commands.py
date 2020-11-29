@@ -1454,9 +1454,7 @@ class Tasks:
         EXPECTING_CONTEXT_SET = 1
         EXPECTING_INCLUDE = 2
         EXPECTING_CONTEXT_RESTORE = 3
-
-        # Initialize Boolean state variables
-        parsing_state = REGULAR_LINES
+        LEGACY_MODE = 4
 
         # Define regular expressions
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
@@ -1465,6 +1463,8 @@ class Tasks:
 
         for fixfile in fixfileset:
             print 'Adding contexts to file: ' + fixfile
+            # Initialize Boolean state variables
+            parsing_state = REGULAR_LINES
             # Initialize loop variables
             title = ''
             most_recent_root_id = ''
@@ -1488,7 +1488,15 @@ class Tasks:
                         if line.strip().startswith('//'):
                             new_file.write(line)
                             continue
+                        # Detect legacy context files (not added using Nebel)
+                        if line.startswith(':parent-context:') or line.startswith('ifdef::context[:parent-context:'):
+                            parsing_state = LEGACY_MODE
+                            break
                         if parsing_state == REGULAR_LINES:
+                            # Process *unexpected* context definition - signals legacy mode!
+                            if line.startswith(':context:'):
+                                parsing_state = LEGACY_MODE
+                                break
                             # Process ID line
                             found_id = ''
                             result = regexp_id_line1.search(line)
@@ -1537,10 +1545,6 @@ class Tasks:
                                 else:
                                     print 'ERROR: Expected assembly title before first instance of :parent-of-context-<SHA>:'
                                     sys.exit()
-                            # Process *unexpected* context definition
-                            if is_assembly and line.startswith(':context:'):
-                                print 'ERROR: Did not expect context definition at this point'
-                                sys.exit()
                             # Process regular line
                             new_file.write(line)
                             continue
@@ -1571,10 +1575,14 @@ class Tasks:
                             else:
                                 print 'ERROR: Expected context restore line'
                                 sys.exit()
-            # Remove original file
-            os.remove(fixfile)
-            # Move new file
-            shutil.move(abs_path, fixfile)
+            if parsing_state == LEGACY_MODE:
+                # Leave legacy files unchanged!
+                print '  - legacy file detected - no changes made'
+            else:
+                # Remove original file
+                os.remove(fixfile)
+                # Move new file
+                shutil.move(abs_path, fixfile)
 
 
     def _generate_hash(self, text):
