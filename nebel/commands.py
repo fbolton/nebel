@@ -768,7 +768,7 @@ class Tasks:
         if args.generate_ids:
             self._update_generate_ids(assemblyfiles, modulefiles)
         if args.add_contexts:
-            self._add_contexts(assemblyfiles, modulefiles, attrfilelist)
+            self._add_contexts(assemblyfiles, modulefiles, attrfilelist, args)
 
 
     def scan_for_categories(self, rootdir):
@@ -1440,7 +1440,7 @@ class Tasks:
         shutil.move(abs_path, file)
 
 
-    def _add_contexts(self, assemblyfiles, modulefiles, attrfilelist):
+    def _add_contexts(self, assemblyfiles, modulefiles, attrfilelist, args):
         # Set of files to which contexts should be added
         fixfileset = set(assemblyfiles) | set(modulefiles)
         # Parse the specified attributes files
@@ -1520,6 +1520,10 @@ class Tasks:
                                 if most_recent_root_id != '':
                                     title_id = most_recent_root_id
                                     title_id_sha = self._generate_hash(title_id)
+                                    if args.hash_contexts:
+                                        ctx_segment = title_id_sha
+                                    else:
+                                        ctx_segment = title_id
                                 else:
                                     print 'ERROR: Expected ID definition before heading = ' + title
                                     sys.exit()
@@ -1529,7 +1533,7 @@ class Tasks:
                             if is_assembly and line.startswith('include::'):
                                 if title_id_sha:
                                     new_file.write(':parent-of-context-' + title_id_sha + ': {context}\n')
-                                    new_file.write(':context: {context}-' + title_id_sha + '\n')
+                                    new_file.write(':context: {context}-' + ctx_segment + '\n')
                                     new_file.write(line)
                                     new_file.write(':context: {parent-of-context-' + title_id_sha + '}\n')
                                     continue
@@ -1549,10 +1553,10 @@ class Tasks:
                             new_file.write(line)
                             continue
                         elif parsing_state == EXPECTING_CONTEXT_SET:
-                            # Process :context: {context}-<SHA> line
+                            # Process :context: {context}-<SEGMENT> line
                             if line.startswith(':context:'):
                                 parsing_state = EXPECTING_INCLUDE
-                                new_file.write(':context: {context}-' + title_id_sha + '\n')
+                                new_file.write(':context: {context}-' + ctx_segment + '\n')
                                 continue
                             else:
                                 print 'ERROR: Expected context definition'
@@ -1683,6 +1687,7 @@ update_parser.add_argument('--fix-links', help='Fix erroneous cross-reference li
 update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
 update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
 update_parser.add_argument('--add-contexts', help='Add _{context} to IDs and add boilerplate around include directives', action='store_true')
+update_parser.add_argument('--hash-contexts', help='Use together with --add-contexts if you want contexts to contain hashes instead of literal IDs', action='store_true')
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
 update_parser.add_argument('-b', '--book', help='Apply update only to the specified book')
 update_parser.add_argument('-a', '--attribute-files', help='Specify a comma-separated list of attribute files')
