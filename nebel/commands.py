@@ -931,11 +931,6 @@ class Tasks:
     def _update_fix_links(self, assemblyfiles, modulefiles, attrfilelist = None):
         # Set of files whose links should be fixed
         fixfileset = set(assemblyfiles) | set(modulefiles)
-        # Parse the specified attributes files
-        if attrfilelist is not None:
-            self.context.parse_attribute_files(attrfilelist)
-        else:
-            print 'ERROR: No attribute files specified'
         # Identify top-level book files to scan
         booklist = self._scan_for_bookfiles()
         # Initialize anchor ID dictionary, legacy ID, and root of ID lookup
@@ -948,6 +943,7 @@ class Tasks:
             booktitle_slug = self._convert_title_to_slug(booktitle)
             #print 'Title URL slug: ' + booktitle_slug
             print 'Title: ' + booktitle
+            self.context.clear_attributes()
             anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, bookfile)
             #print anchorid_dict.keys()
         #print anchorid_dict

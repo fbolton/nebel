@@ -99,6 +99,10 @@ class NebelContext:
             return None
 
 
+    def clear_attributes(self):
+        self.attributeDict.clear()
+
+
     def resolve_raw_attribute_value(self, value):
         if len(self.attributeDict) == 0:
             return value
