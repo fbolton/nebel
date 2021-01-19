@@ -15,6 +15,7 @@ import nebel.factory
 import datetime
 import glob
 import hashlib
+import subprocess
 
 class Tasks:
     def __init__(self, context):
@@ -905,11 +906,11 @@ class Tasks:
                     parentassemblies[modulefile] = [assemblyfile]
                 else:
                     parentassemblies[modulefile].append(assemblyfile)
-        return parentassemblies
+        return parentassemblies, assemblyincludes
 
 
     def _update_parent_assemblies(self, assemblylist):
-        parentassemblies = self._scan_for_parent_assemblies(assemblylist)
+        parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblylist)
         # Update the ParentAssemblies metadata in each of the module files
         metadata = {}
         for modulefile in parentassemblies:
@@ -1359,7 +1360,7 @@ class Tasks:
             categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
             assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
             bookfiles = glob.glob('*/master.adoc')
-            parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
+            parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
             self._mv_single_file(parentassemblies, fromfile=frompattern, tofile=topattern)
         elif frompattern.count('{}') != 1:
             print 'ERROR: More than one glob pattern {} is not allowed in FROM_FILE'
@@ -1383,7 +1384,7 @@ class Tasks:
                 categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
                 assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset)
                 bookfiles = glob.glob('*/master.adoc')
-                parentassemblies = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
+                parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblyfiles + bookfiles)
                 self._mv_single_file(parentassemblies, fromfile, tofile)
 
 
@@ -1596,6 +1597,51 @@ class Tasks:
         pass
 
 
+    def atom(self, args):
+        head, tail = os.path.split(args.FILE)
+        type = self.type_of_file(tail)
+        if type not in ['assembly', 'procedure', 'concept', 'reference']:
+            print 'ERROR: File must be a module or an assembly: ' + args.FILE
+            sys.exit()
+        if type in ['procedure', 'concept', 'reference']:
+            type = 'module'
+        if (not args.parent) and (not args.siblings) and (not args.children):
+            # Set the default options
+            if type == 'assembly':
+                edit_parent = False
+                edit_siblings = False
+                edit_children = True
+            else: # type == 'module'
+                edit_parent = True
+                edit_siblings = True
+                edit_children = False
+        else:
+            edit_parent = args.parent
+            edit_siblings = args.siblings
+            edit_children = args.children
+        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        assemblyfiles.extend(self._scan_for_bookfiles())
+        parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblyfiles)
+        # Assemble the list of files to edit
+        targetfilelist = []
+        if edit_parent or edit_siblings:
+            if args.FILE in parentassemblies:
+                for parentassembly in parentassemblies[args.FILE]:
+                    if edit_parent:
+                        targetfilelist.append(parentassembly)
+                    if edit_siblings and (parentassembly in assemblyincludes):
+                        targetfilelist.extend(assemblyincludes[parentassembly])
+            else:
+                print 'WARN: Could not find parent assembly'
+        if not edit_siblings:
+            targetfilelist.append(args.FILE)
+        if edit_children and type == 'assembly':
+            if args.FILE in assemblyincludes:
+                targetfilelist.extend(assemblyincludes[args.FILE])
+        subprocess.check_call(['atom'] + targetfilelist)
+
+
     def version(self, args):
         pass
 
@@ -1700,6 +1746,14 @@ orphan_parser.set_defaults(func=tasks.orphan_search)
 toc_parser = subparsers.add_parser('toc', help='List TOC for assembly or book')
 toc_parser.add_argument('ASSEMBLY_OR_BOOK_FILE', help='Path to the assembly or book file whose table of contents you want to list')
 toc_parser.set_defaults(func=tasks.toc)
+
+# Create the sub-parser for the 'atom' command
+atom_parser = subparsers.add_parser('atom', help='Open a module or an assembly using the atom editor')
+atom_parser.add_argument('FILE', help='Pathname of the assembly or module file to edit')
+atom_parser.add_argument('-p', '--parent', help='Open the parent assembly of the specified assembly or module', action='store_true')
+atom_parser.add_argument('-s', '--siblings', help='Open the siblings of the specified assembly or module', action='store_true')
+atom_parser.add_argument('-c', '--children', help='Open the children of the specified assembly', action='store_true')
+atom_parser.set_defaults(func=tasks.atom)
 
 
 # Now, parse the args and call the relevant sub-command
