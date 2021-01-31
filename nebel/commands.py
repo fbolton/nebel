@@ -1166,6 +1166,7 @@ class Tasks:
                         anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath }
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
+                    tentative_context_of_id = None
                     tentative_metadata = {}
                 elif action == ORDINARY_LINE:
                     # After hitting an ordinary line, preceding metadata is no longer current
@@ -1187,8 +1188,10 @@ class Tasks:
                     else:
                         anchorid = rawanchorid
                         rootofid = rawanchorid
+                        currentcontext = None
                     tentative_anchor_id = anchorid
                     tentative_root_of_id = rootofid
+                    tentative_context_of_id = currentcontext
                 elif (action == TITLE_LINE) and tentative_anchor_id:
                     # Define an anchor ID that is associated with a heading
                     if tentative_anchor_id not in anchorid_dict:
@@ -1197,7 +1200,7 @@ class Tasks:
                     if booktitle_slug in anchorid_dict[tentative_anchor_id]:
                         print 'WARNING: Anchor ID: ' + tentative_anchor_id + 'appears more than once in book: ' + booktitle_slug
                     else:
-                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath, 'Title': title }
+                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath, 'Title': title, 'Context': tentative_context_of_id }
                         if 'ConvertedFromID' in tentative_metadata:
                             anchorid_dict[tentative_anchor_id][booktitle_slug]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
                             legacyid_dict[tentative_metadata['ConvertedFromID']] = tentative_anchor_id
@@ -1209,10 +1212,12 @@ class Tasks:
                                 rootofid_dict[tentative_root_of_id].append(tentative_anchor_id)
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
+                    tentative_context_of_id = None
                     tentative_metadata = {}
                 elif (action == TITLE_LINE) and not tentative_anchor_id:
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
+                    tentative_context_of_id = None
                     tentative_metadata = {}
                 elif action == INCLUDE_LINE:
                     currentdir, basename = os.path.split(filepath)
@@ -1222,6 +1227,8 @@ class Tasks:
                         sys.exit()
                     anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, includefile)
                     tentative_anchor_id = ''
+                    tentative_root_of_id = ''
+                    tentative_context_of_id = None
                     tentative_metadata = {}
         return anchorid_dict, legacyid_dict, rootofid_dict
 
