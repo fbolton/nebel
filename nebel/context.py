@@ -113,11 +113,12 @@ class NebelContext:
 
     def replace_matching_attribute(self, match_obj):
         name = match_obj.group(1)
-        if self.attributeDict.has_key(name):
-            duple = self.attributeDict[name]
-        else:
-            print 'ERROR: Attribute ' + name + ' cannot be resolved. Use -a option to add attribute files.'
-            sys.exit()
+        if not self.attributeDict.has_key(name):
+            print 'WARNING: Attribute {' + name + '} cannot be resolved.'
+            # Treat it as a literal value in braces
+            value = '{' + name + '}'
+            self.attributeDict[name] = [value, value]
+        duple = self.attributeDict[name]
         if duple[1] is None:
             duple[1] = self.resolve_raw_attribute_value(duple[0])
         return duple[1]

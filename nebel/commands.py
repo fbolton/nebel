@@ -952,6 +952,12 @@ class Tasks:
         self.legacyid_dict = legacyid_dict
         self.rootofid_dict = rootofid_dict
 
+        # Generate parentassemblies dictionary for all assemblies
+        categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
+        assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblyfiles)
+        self.parentassemblies = parentassemblies
+
         for fixfile in fixfileset:
             print 'Updating links for file: ' + fixfile
             dirname = os.path.dirname(fixfile)
@@ -960,6 +966,8 @@ class Tasks:
             with os.fdopen(fh, 'w') as new_file:
                 with open(fixfile) as old_file:
                     for line in old_file:
+                        # Smuggle the 'fixfile' value into the _on_match_*() functions
+                        self._on_match_fixfile = fixfile
                         line = self._regexp_replace_angles(line)
                         line = self._regexp_replace_xref(line)
                         line = self._regexp_replace_link(line)
@@ -985,7 +993,7 @@ class Tasks:
     def _on_match_xref(self, match_obj):
         anchorid = match_obj.group(1)
         optionaltext = match_obj.group(2)
-        new_anchorid = self._repair_anchorid(anchorid)
+        new_anchorid = self._repair_anchorid(anchorid, self._on_match_fixfile)
         if optionaltext:
             return 'xref:' + new_anchorid + '[' + optionaltext + ']'
         else:
@@ -1000,41 +1008,54 @@ class Tasks:
         bookattribute = match_obj.group(1)
         anchorid = match_obj.group(2)
         optionaltext = match_obj.group(3)
-        new_anchorid = self._repair_anchorid(anchorid)
+        new_anchorid = self._repair_anchorid(anchorid, self._on_match_fixfile)
         if optionaltext:
             return 'link:' + bookattribute + '#' + new_anchorid + '[' + optionaltext + ']'
         else:
             return 'link:' + bookattribute + '#' + new_anchorid + '[]'
 
-    def _repair_anchorid(self, anchorid):
+    def _repair_anchorid(self, anchorid, fixfile):
         if anchorid.endswith('_{context}'):
-            # The context attribute should *not* appear in a link or xref
             plainanchorid = anchorid.replace('_{context}','')
         else:
             plainanchorid = anchorid
         if plainanchorid in self.anchorid_dict:
-            new_anchorid = plainanchorid
+            target_anchorid = plainanchorid
         elif plainanchorid in self.legacyid_dict:
-            new_anchorid = self.legacyid_dict[plainanchorid]
+            target_anchorid = self.legacyid_dict[plainanchorid]
         elif plainanchorid in self.rootofid_dict:
-            new_anchorid = self.choose_anchorid_from_rootofid_dict(plainanchorid)
-            if new_anchorid is None:
+            target_anchorid = self.choose_anchorid_from_rootofid_dict(plainanchorid)
+            if target_anchorid is None:
                 # Leave the ID unchanged
-                new_anchorid = anchorid
+                target_anchorid = anchorid
         elif '_' in plainanchorid:
                 # Last attempt to fix - ID might have wrong context value after the '_' char
                 rootofid, contextval = plainanchorid.rsplit('_', 1)
                 if rootofid in self.rootofid_dict:
-                    new_anchorid = self.choose_anchorid_from_rootofid_dict(rootofid)
-                    if new_anchorid is None:
+                    target_anchorid = self.choose_anchorid_from_rootofid_dict(rootofid)
+                    if target_anchorid is None:
                         # Leave the ID unchanged
-                        new_anchorid = anchorid
+                        target_anchorid = anchorid
                 else:
-                    new_anchorid = anchorid
+                    target_anchorid = anchorid
         else:
             print 'WARNING: link to unknown ID: ' + anchorid
-            new_anchorid = anchorid
-        return new_anchorid
+            target_anchorid = anchorid
+
+        # Special case: if the file containing the xref and the file containing the target ID have the *same* parent assembly,
+        #   then the ID in the xref *should* use _{context} (this facilitates content sharing between products)
+        if '_' in target_anchorid:
+            rootofid, contextval = plainanchorid.rsplit('_', 1)
+            use_context_suffix = False
+            for parent in self.parentassemblies[fixfile]:
+                if target_anchorid in self.anchorid_dict:
+                    for booktitle_slug in self.anchorid_dict[target_anchorid]:
+                        targetfile = self.anchorid_dict[target_anchorid][booktitle_slug]['FilePath']
+                        if (targetfile.startswith(self.context.MODULES_DIR)) and (parent in self.parentassemblies[targetfile]):
+                            use_context_suffix = True
+            if use_context_suffix:
+                target_anchorid = rootofid + '_{context}'
+        return target_anchorid
 
     def choose_anchorid_from_rootofid_dict(self, anchorid):
         idlist = self.rootofid_dict[anchorid]
@@ -1163,7 +1184,7 @@ class Tasks:
                     if booktitle_slug in anchorid_dict[tentative_anchor_id]:
                         print 'WARNING: Anchor ID: ' + tentative_anchor_id + 'appears more than once in book: ' + booktitle_slug
                     else:
-                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath }
+                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': os.path.relpath(os.path.realpath(filepath)) }
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
                     tentative_context_of_id = None
@@ -1200,7 +1221,7 @@ class Tasks:
                     if booktitle_slug in anchorid_dict[tentative_anchor_id]:
                         print 'WARNING: Anchor ID: ' + tentative_anchor_id + 'appears more than once in book: ' + booktitle_slug
                     else:
-                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': filepath, 'Title': title, 'Context': tentative_context_of_id }
+                        anchorid_dict[tentative_anchor_id][booktitle_slug] = { 'FilePath': os.path.relpath(os.path.realpath(filepath)), 'Title': title, 'Context': tentative_context_of_id }
                         if 'ConvertedFromID' in tentative_metadata:
                             anchorid_dict[tentative_anchor_id][booktitle_slug]['ConvertedFromID'] = tentative_metadata['ConvertedFromID']
                             legacyid_dict[tentative_metadata['ConvertedFromID']] = tentative_anchor_id
