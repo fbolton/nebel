@@ -558,6 +558,14 @@ class Tasks:
             # First line should be the column headings
             headings = filehandle.readline().strip().replace(' ','')
             headinglist = headings.split(',')
+            # Alias 'NestingLevel' to 'Level'
+            if 'NestingLevel' in headinglist:
+                k = headinglist.index('NestingLevel')
+                headinglist[k] = 'Level'
+            # Alias 'NewModuleID' to 'ModuleID'
+            if 'NewModuleID' in headinglist:
+                k = headinglist.index('NewModuleID')
+                headinglist[k] = 'ModuleID'
             # Check plausibility of headinglist
             if ('Category' not in headinglist) or ('ModuleID' not in headinglist):
                 print 'ERROR: CSV file does not have correct format'
