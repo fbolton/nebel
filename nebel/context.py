@@ -4,9 +4,11 @@ Created on January 2, 2019
 @author fbolton
 '''
 
+from __future__ import absolute_import
+from __future__ import print_function
 import re
 import sys
-import ConfigParser
+import six.moves.configparser
 
 
 class NebelContext:
@@ -46,7 +48,7 @@ class NebelContext:
 
     def initializeFromFile(self, configfile):
         # print 'Initializing from file: ' + configfile
-        config = ConfigParser.RawConfigParser(
+        config = six.moves.configparser.RawConfigParser(
             {'dir.assemblies': self.ASSEMBLIES_DIR,
              'dir.modules': self.MODULES_DIR,
              'dir.images': self.IMAGES_DIR,
@@ -113,8 +115,8 @@ class NebelContext:
 
     def replace_matching_attribute(self, match_obj):
         name = match_obj.group(1)
-        if not self.attributeDict.has_key(name):
-            print 'WARNING: Attribute {' + name + '} cannot be resolved.'
+        if name not in self.attributeDict:
+            print('WARNING: Attribute {' + name + '} cannot be resolved.')
             # Treat it as a literal value in braces
             value = '{' + name + '}'
             self.attributeDict[name] = [value, value]

@@ -4,6 +4,8 @@ Created on January 2, 2019
 @author fbolton
 '''
 
+from __future__ import absolute_import
+from __future__ import print_function
 import os
 import sys
 import re
@@ -28,7 +30,7 @@ class ModuleFactory:
             regexp = re.compile(r'[_\-]+$')
             result = regexp.search(tmpstr)
             if result is None:
-                print 'ERROR: Cannot parse ModuleID: ' + moduleid
+                print('ERROR: Cannot parse ModuleID: ' + moduleid)
                 sys.exit()
             coremoduleid = regexp.sub('', tmpstr)
         coremoduleid = coremoduleid.replace('_', '-')
@@ -57,7 +59,7 @@ class ModuleFactory:
         elif type in ['procedure', 'concept', 'reference', 'module']:
             return os.path.join(self.context.MODULES_DIR, category)
         else:
-            print 'ERROR: Unknown module Type: ' + str(type)
+            print('ERROR: Unknown module Type: ' + str(type))
             sys.exit()
 
     def module_or_assembly_path(self, metadata):
@@ -71,7 +73,7 @@ class ModuleFactory:
             os.makedirs(dirpath)
         filepath = os.path.join(dirpath, filename)
         if os.path.exists(filepath) and not clobber:
-            print 'INFO: File already exists, skipping: ' + filename
+            print('INFO: File already exists, skipping: ' + filename)
             return filepath
         with open(filepath, 'w') as filehandle:
             filehandle.write('// Metadata created by nebel\n')
