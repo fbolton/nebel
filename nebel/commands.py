@@ -1053,7 +1053,7 @@ class Tasks:
         # Special case: if the file containing the xref and the file containing the target ID have the *same* parent assembly,
         #   then the ID in the xref *should* use _{context} (this facilitates content sharing between products)
         if '_' in target_anchorid:
-            rootofid, contextval = plainanchorid.rsplit('_', 1)
+            rootofid, contextval = target_anchorid.rsplit('_', 1)
             use_context_suffix = False
             for parent in self.parentassemblies[fixfile]:
                 if target_anchorid in self.anchorid_dict:
