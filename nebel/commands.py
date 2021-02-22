@@ -963,6 +963,7 @@ class Tasks:
         # Generate parentassemblies dictionary for all assemblies
         categoryset = self.scan_for_categories(self.context.ASSEMBLIES_DIR)
         assemblyfiles = self.scan_for_categorised_files(self.context.ASSEMBLIES_DIR, categoryset, filefilter='assembly')
+        assemblyfiles.extend(booklist)
         parentassemblies, assemblyincludes = self._scan_for_parent_assemblies(assemblyfiles)
         self.parentassemblies = parentassemblies
 
