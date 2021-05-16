@@ -1121,7 +1121,7 @@ class Tasks:
         # Define regular expressions
         regexp_metadata = re.compile(r'^\s*//\s*(\w+)\s*:\s*(.+)')
         regexp_id_line1 = re.compile(r'\[\[\s*(\S+)\s*\]\]')
-        regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
+        regexp_id_line2 = re.compile(r'\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
         regexp_attribute = re.compile(r'^:([\w\-]+):\s+(.*)')
         regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
