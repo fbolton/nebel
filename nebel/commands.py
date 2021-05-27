@@ -1254,6 +1254,9 @@ class Tasks:
                     tentative_metadata['ModuleID'] = tentative_anchor_id
                     tentative_metadata['Context'] = tentative_context_of_id
                     tentative_metadata['FilePath'] = os.path.relpath(os.path.realpath(filepath))
+                    file_pieces = tentative_metadata['FilePath'].split(os.sep)
+                    if (file_pieces[0] == self.context.ASSEMBLIES_DIR) or (file_pieces[0] == self.context.MODULES_DIR):
+                        tentative_metadata['Category'] = os.sep.join(file_pieces[1:-1])
                     metadata_list.append(tentative_metadata)
                     # Clear dictionaries and lists
                     tentative_anchor_id = ''
@@ -1699,6 +1702,10 @@ class Tasks:
         if not os.path.exists(filepath):
             print('ERROR: File does not exist: ' + args.FILE)
             sys.exit()
+        if args.cols:
+            col_header_list = args.cols.split(',')
+        else:
+            col_header_list = None
         # Initialize anchor ID dictionary, legacy ID, and root of ID lookup
         anchorid_dict = {}
         legacyid_dict = {}
@@ -1711,7 +1718,7 @@ class Tasks:
         self.context.clear_attributes()
         anchorid_dict, legacyid_dict, rootofid_dict, metadata_list = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, metadata_list, booktitle_slug, filepath)
         #print(metadata_list)
-        self._export_csv(metadata_list)
+        self._export_csv(metadata_list, col_header_list)
         # TODO - Also need to extract 'Category' and 'Level' metadata
 
     def _export_csv(self, metadata_list, col_header_list = None):
@@ -1850,6 +1857,7 @@ atom_parser.set_defaults(func=tasks.atom)
 # Create the sub-parser for the 'csv' command
 csv_parser = subparsers.add_parser('csv', help='Generate CSV of metadata for assembly or book')
 csv_parser.add_argument('ASSEMBLY_OR_BOOK_FILE', help='Path to the assembly or book file whose metadata you want to generate as a CSV file')
+csv_parser.add_argument('-c', '--cols', help='Specify a comma-separated list of column headers')
 csv_parser.set_defaults(func=tasks.csv)
 
 
