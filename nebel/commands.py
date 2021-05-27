@@ -489,6 +489,7 @@ class Tasks:
             showcontent = True
             currtagname = ''
         linesinfile = []
+        regexp_attribute = re.compile(r'^:([\w\-]+):\s+(.*)')
         regexp_include = re.compile(r'^\s*include::([^\[]+)\[([^\]]*)\]')
         regexp_title = re.compile(r'^(=+)\s+(\S.*)')
         regexp_tag_begin = re.compile(r'tag::([^\[]+)\[\]')
@@ -515,6 +516,13 @@ class Tasks:
                         continue
                 if not showcontent:
                     # Content is currently tagged off - skip this line
+                    continue
+                result = regexp_attribute.search(line)
+                if result is not None:
+                    name = result.group(1)
+                    value = result.group(2).strip()
+                    self.context.update_attribute(name, value)
+                    linesinfile.append(line)
                     continue
                 result = regexp_title.search(line)
                 if result is not None:
@@ -943,6 +951,7 @@ class Tasks:
         anchorid_dict = {}
         legacyid_dict = {}
         rootofid_dict = {}
+        metadata_list = []
         # Process each book in the list
         for bookfile in booklist:
             booktitle = self._scan_for_title(bookfile)
@@ -950,7 +959,7 @@ class Tasks:
             #print 'Title URL slug: ' + booktitle_slug
             print('Title: ' + booktitle)
             self.context.clear_attributes()
-            anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, bookfile)
+            anchorid_dict, legacyid_dict, rootofid_dict, metadata_list = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, metadata_list, booktitle_slug, bookfile)
             #print anchorid_dict.keys()
         #print anchorid_dict
         self.anchorid_dict = anchorid_dict
@@ -1107,7 +1116,7 @@ class Tasks:
         return title.strip().lower().replace(' ', '_').replace('-', '_')
 
 
-    def _parse_file_for_anchorids(self, anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, filepath):
+    def _parse_file_for_anchorids(self, anchorid_dict, legacyid_dict, rootofid_dict, metadata_list, booktitle_slug, filepath):
         # Define action enums
         NO_ACTION = 0
         ORDINARY_LINE = 1
@@ -1237,6 +1246,16 @@ class Tasks:
                                 rootofid_dict[tentative_root_of_id] = [ tentative_anchor_id ]
                             else:
                                 rootofid_dict[tentative_root_of_id].append(tentative_anchor_id)
+                    head, tail = os.path.split(filepath)
+                    type = self.type_of_file(tail)
+                    if type == 'module': type = None
+                    tentative_metadata['Type'] = type
+                    tentative_metadata['Title'] = title
+                    tentative_metadata['ModuleID'] = tentative_anchor_id
+                    tentative_metadata['Context'] = tentative_context_of_id
+                    tentative_metadata['FilePath'] = os.path.relpath(os.path.realpath(filepath))
+                    metadata_list.append(tentative_metadata)
+                    # Clear dictionaries and lists
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
                     tentative_context_of_id = None
@@ -1252,12 +1271,12 @@ class Tasks:
                     if not os.path.exists(includefile):
                         print('ERROR: Included file does not exist: ' + includefile)
                         sys.exit()
-                    anchorid_dict, legacyid_dict, rootofid_dict = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, booktitle_slug, includefile)
+                    anchorid_dict, legacyid_dict, rootofid_dict, metadata_list = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, metadata_list, booktitle_slug, includefile)
                     tentative_anchor_id = ''
                     tentative_root_of_id = ''
                     tentative_context_of_id = None
                     tentative_metadata = {}
-        return anchorid_dict, legacyid_dict, rootofid_dict
+        return anchorid_dict, legacyid_dict, rootofid_dict, metadata_list
 
     def _update_generate_ids(self, assemblyfiles, modulefiles):
         # Set of files for which IDs should be generated
@@ -1675,8 +1694,47 @@ class Tasks:
                 targetfilelist.extend(assemblyincludes[args.FILE])
         subprocess.check_call(['atom'] + targetfilelist)
 
+    def csv(self, args):
+        filepath = args.ASSEMBLY_OR_BOOK_FILE
+        if not os.path.exists(filepath):
+            print('ERROR: File does not exist: ' + args.FILE)
+            sys.exit()
+        # Initialize anchor ID dictionary, legacy ID, and root of ID lookup
+        anchorid_dict = {}
+        legacyid_dict = {}
+        rootofid_dict = {}
+        metadata_list = []
+        # Process the book or assembly
+        booktitle = self._scan_for_title(filepath)
+        booktitle_slug = self._convert_title_to_slug(booktitle)
+        #print 'Title URL slug: ' + booktitle_slug
+        self.context.clear_attributes()
+        anchorid_dict, legacyid_dict, rootofid_dict, metadata_list = self._parse_file_for_anchorids(anchorid_dict, legacyid_dict, rootofid_dict, metadata_list, booktitle_slug, filepath)
+        #print(metadata_list)
+        self._export_csv(metadata_list)
+        # TODO - Also need to extract 'Category' and 'Level' metadata
 
-    def version(self, args):
+    def _export_csv(self, metadata_list, col_header_list = None):
+        # Initialize 'col_header_list'
+        if col_header_list is None:
+            # By default, use all the keys from the first row of metadata
+            col_header_list = list(metadata_list[0].keys())
+        #print(col_header_list)
+        #print(','.join(map(lambda s: '"' + s + '"', col_header_list)))
+        print(','.join(col_header_list))
+        for metadata in metadata_list:
+            for col_header in col_header_list:
+                if col_header in metadata:
+                    value = metadata[col_header]
+                    if value is not None:
+                        if ' ' in value:
+                            print('"' + value + '"', end='')
+                        else:
+                            print(value, end='')
+                print(',', end='')
+            print()
+
+def version(self, args):
         pass
 
 
@@ -1705,7 +1763,7 @@ tasks = Tasks(context)
 
 # Create the top-level parser
 parser = argparse.ArgumentParser(prog='nebel')
-parser.add_argument('-v', '--version', action='version', version='Nebel 2.1.x (dev release)')
+parser.add_argument('-v', '--version', action='version', version='Nebel 3.0.x (dev release)')
 subparsers = parser.add_subparsers()
 
 # Create the sub-parser for the 'assembly' command
@@ -1788,6 +1846,11 @@ atom_parser.add_argument('-p', '--parent', help='Open the parent assembly of the
 atom_parser.add_argument('-s', '--siblings', help='Open the siblings of the specified assembly or module', action='store_true')
 atom_parser.add_argument('-c', '--children', help='Open the children of the specified assembly', action='store_true')
 atom_parser.set_defaults(func=tasks.atom)
+
+# Create the sub-parser for the 'csv' command
+csv_parser = subparsers.add_parser('csv', help='Generate CSV of metadata for assembly or book')
+csv_parser.add_argument('ASSEMBLY_OR_BOOK_FILE', help='Path to the assembly or book file whose metadata you want to generate as a CSV file')
+csv_parser.set_defaults(func=tasks.csv)
 
 
 # Now, parse the args and call the relevant sub-command
