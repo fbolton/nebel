@@ -743,18 +743,24 @@ class Tasks:
             attrfilelist = args.attribute_files.strip().split(',')
         else:
             attrfilelist = None
+        fixfileset = None
         if args.FILE:
-            head, tail = os.path.split(args.FILE)
-            type = self.type_of_file(tail)
-            if type == 'assembly':
-                assemblyfiles = [ args.FILE ]
-                modulefiles = []
-            elif type in ['procedure', 'concept', 'reference']:
-                assemblyfiles = []
-                modulefiles = [args.FILE]
+            if args.FILE.count('{}') > 0:
+                # Case of globbing for a fixfileset
+                fixfileset = set(glob.glob(args.FILE.replace('{}', '*')))
             else:
-                print('ERROR: File must be a module or an assembly: ' + args.FILE)
-                sys.exit()
+                # Case of a single file
+                head, tail = os.path.split(args.FILE)
+                type = self.type_of_file(tail)
+                if type == 'assembly':
+                    assemblyfiles = [ args.FILE ]
+                    modulefiles = []
+                elif type in ['procedure', 'concept', 'reference']:
+                    assemblyfiles = []
+                    modulefiles = [args.FILE]
+                else:
+                    print('ERROR: File must be a module or an assembly: ' + args.FILE)
+                    sys.exit()
         else:
             # Determine the set of categories to update
             categoryset = set()
@@ -780,7 +786,9 @@ class Tasks:
         if args.parent_assemblies:
             self._update_parent_assemblies(assemblyfiles)
         if args.generate_ids:
-            self._update_generate_ids(assemblyfiles, modulefiles)
+            if fixfileset is None:
+                fixfileset = set(assemblyfiles) | set(modulefiles)
+            self._update_generate_ids(fixfileset, args.id_prefix)
         if args.add_contexts:
             self._add_contexts(assemblyfiles, modulefiles, attrfilelist, args)
 
@@ -1281,10 +1289,7 @@ class Tasks:
                     tentative_metadata = {}
         return anchorid_dict, legacyid_dict, rootofid_dict, metadata_list
 
-    def _update_generate_ids(self, assemblyfiles, modulefiles):
-        # Set of files for which IDs should be generated
-        fixfileset = set(assemblyfiles) | set(modulefiles)
-
+    def _update_generate_ids(self, fixfileset, idprefix=None):
         # Define regular expressions
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
@@ -1293,7 +1298,8 @@ class Tasks:
         for fixfile in fixfileset:
             print('Adding missing IDs to file: ' + fixfile)
             dirname, basename = os.path.split(os.path.normpath(fixfile))
-            idprefix = dirname.replace(os.sep, '-').replace('_', '-') + '-' + self.moduleid_of_file(basename)
+            if idprefix is None:
+                idprefix = dirname.replace(os.sep, '-').replace('_', '-') + '-' + self.moduleid_of_file(basename)
             # Create temp file
             fh, abs_path = tempfile.mkstemp()
             with os.fdopen(fh, 'w') as new_file:
@@ -1827,6 +1833,7 @@ update_parser.add_argument('--fix-includes', help='Fix erroneous include directi
 update_parser.add_argument('--fix-links', help='Fix erroneous cross-reference links', action='store_true')
 update_parser.add_argument('-p','--parent-assemblies', help='Update ParentAssemblies property in modules and assemblies', action='store_true')
 update_parser.add_argument('--generate-ids', help='Generate missing IDs for headings', action='store_true')
+update_parser.add_argument('--id-prefix', help='Customize ID prefix for IDs generated using --generate-ids')
 update_parser.add_argument('--add-contexts', help='Add _{context} to IDs and add boilerplate around include directives', action='store_true')
 update_parser.add_argument('--hash-contexts', help='Use together with --add-contexts if you want contexts to contain hashes instead of literal IDs', action='store_true')
 update_parser.add_argument('-c', '--category-list', help='Apply update only to this comma-separated list of categories (enclose in quotes)')
