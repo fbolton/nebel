@@ -1291,7 +1291,7 @@ class Tasks:
                     tentative_metadata = {}
         return anchorid_dict, legacyid_dict, rootofid_dict, metadata_list
 
-    def _update_generate_ids(self, fixfileset, idprefix=None):
+    def _update_generate_ids(self, fixfileset, customprefix=None):
         # Define regular expressions
         regexp_id_line1 = re.compile(r'^\s*\[\[\s*(\S+)\s*\]\]\s*$')
         regexp_id_line2 = re.compile(r'^\s*\[id\s*=\s*[\'"]\s*(\S+)\s*[\'"]\]\s*$')
@@ -1300,8 +1300,10 @@ class Tasks:
         for fixfile in fixfileset:
             print('Adding missing IDs to file: ' + fixfile)
             dirname, basename = os.path.split(os.path.normpath(fixfile))
-            if idprefix is None:
+            if customprefix is None:
                 idprefix = dirname.replace(os.sep, '-').replace('_', '-') + '-' + self.moduleid_of_file(basename)
+            else:
+                idprefix = customprefix
             # Create temp file
             fh, abs_path = tempfile.mkstemp()
             with os.fdopen(fh, 'w') as new_file:
