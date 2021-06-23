@@ -139,6 +139,8 @@ class Tasks:
         title = re.sub(r'[^0-9a-zA-Z_\-\s]+', '', title)
         # Replace one or more contiguous whitespaces with a dash
         title = re.sub(r'\s+', '-', title)
+        # Make lower case
+        title = title.lower()
         return title
 
     def _create_from_assembly(self,args):
