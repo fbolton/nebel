@@ -1025,7 +1025,8 @@ class Tasks:
             return 'xref:' + new_anchorid + '[]'
 
     def _regexp_replace_link(self, value):
-        regexp = re.compile(r'link:(\{[\w\-]+\})#([^\[]+)\[([^\]]*)\]')
+        # Check for {link-prefix}:, which is used in Debezium docs instead of link:
+        regexp = re.compile(r'(?:link|\{link\-prefix\}):(\{[\w\-]+\})#([^\[]+)\[([^\]]*)\]')
         new_value = regexp.sub(self._on_match_link, value)
         return new_value
 
