@@ -574,11 +574,10 @@ class Tasks:
             headings = filehandle.readline().strip().replace(' ','')
             headinglist = headings.split(',')
             # Check plausibility of headinglist
-            if ('Category' not in headinglist) or ('ModuleID' not in headinglist):
+            if ('Type' not in headinglist) or ('ModuleID' not in headinglist):
                 print('ERROR: CSV file does not have correct format')
                 sys.exit()
-            if 'Level' in headinglist:
-                USING_LEVELS = True
+            USING_LEVELS = True
             # Create initial copy of the generated-master.adoc file
             MASTERDOC_FILENAME = 'generated-master.adoc'
             templatefile = os.path.join(self.context.templatePath, 'master.adoc')
@@ -588,6 +587,7 @@ class Tasks:
             nestedlevelstack = []
             currentfile = MASTERDOC_FILENAME
             currentlevel = 0
+            categorylevels = []
             # Read and parse the CSV file
             completefile = filehandle.read()
             lines = self.smart_split(completefile, '\n', preserveQuotes=True)
@@ -595,12 +595,21 @@ class Tasks:
                 if line.strip() != '':
                     fieldlist = self.smart_split(line.strip())
                     metadata = dict(zip(headinglist, fieldlist))
+                    # Preprocessing Ory metadata
+                    for lev in range(1, 5):
+                        titlenum = 'Title' + str(lev)
+                        if metadata[titlenum] != '':
+                            metadata['Level'] = str(lev)
+                            metadata['Title'] = metadata[titlenum]
+                            metadata['ModuleID'] = self.title_to_id(metadata[titlenum]) + '-id'
+                            categorylevels.insert(lev-1, metadata['ModuleID'])
+                            metadata['Category'] = os.sep.join(categorylevels[0:lev-1])
                     # Skip rows with Implement field set to 'no'
                     if ('Implement' in metadata) and (metadata['Implement'].lower() == 'no'):
                         print('INFO: Skipping unimplemented module/assembly: ' + metadata['ModuleID'])
                         continue
                     # Weed out irrelevant metadata entries
-                    for field,value in metadata.items():
+                    for field, value in list(metadata.items()):
                         if field not in self.context.allMetadataFields:
                             del(metadata[field])
                     if metadata['Type'] == '':
